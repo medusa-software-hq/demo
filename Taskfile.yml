@@ -1,6 +1,10 @@
 version: '3'
 
 includes:
+  gradleRoot:
+    taskfile: gradle.Taskfile.yml
+    dir: .
+
   github:
     taskfile: github.Taskfile.yml
     dir: .
@@ -22,6 +26,7 @@ tasks:
     desc: Apply all automatic fixes
     deps:
       - github:fixLint
+      - gradleRoot:fixFormatting
       - frontend:fixFormatting
       - frontend:fixLint
       - infra:fixFormatting
