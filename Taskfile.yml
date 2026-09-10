@@ -9,6 +9,10 @@ includes:
     taskfile: infra/Taskfile.yml
     dir: infra
 
+  worker:
+    taskfile: worker/Taskfile.yml
+    dir: worker
+
 tasks:
   fixAll:
     desc: Apply all automatic fixes
@@ -16,3 +20,5 @@ tasks:
       - github:fixLint
       - infra:fixFormatting
       - infra:fixLint
+      - worker:fixFormatting
+      - worker:fixLint

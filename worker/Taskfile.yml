@@ -51,10 +51,3 @@ tasks:
     deps: [install]
     cmds:
       - npx --no-install tsc --noEmit
-
-  preview:
-    desc: Preview changes against the current stack
-    deps: [install]
-    interactive: true
-    cmds:
-      - pulumi preview
