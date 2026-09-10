@@ -18,6 +18,9 @@ const scriptName = config.require('workerName');
 /** Relative to the Pulumi project, which is `infra`. */
 const ENTRY = '../worker/src/index.ts';
 
+/** Kept in step with the worker's own `tsconfig.json`, which type-checking uses. */
+const TARGET = 'es2022';
+
 /**
  * Bundled here rather than by a step before this one.
  *
@@ -31,9 +34,26 @@ const bundle = (): string => {
     entryPoints: [ENTRY],
     bundle: true,
     format: 'esm',
-    target: 'es2022',
+    target: TARGET,
     platform: 'neutral',
     write: false,
+
+    // Stated rather than read from the worker's tsconfig.json, which extends a preset
+    // living in that package's node_modules — and the deployment runner installs this
+    // package's dependencies, not that one's. esbuild would warn that it cannot find
+    // the base config and carry on under different rules, so the bundle built in the
+    // pipeline would not be the bundle built here.
+    //
+    // These are the options that change emitted code. Everything else in that file is
+    // about type-checking, which `tsc` does, and which esbuild does not attempt.
+    tsconfigRaw: {
+      compilerOptions: {
+        target: TARGET,
+        // What ES2022 implies for `tsc`, said out loud so an esbuild default cannot
+        // quietly disagree with it.
+        useDefineForClassFields: true,
+      },
+    },
   });
 
   const [output] = outputFiles;
