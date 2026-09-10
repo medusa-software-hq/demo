@@ -1,0 +1,61 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One deployment sequence at a time, for the whole repository.
+#
+# The group is deliberately constant. Keying it on the ref or the commit would give
+# every run its own group, which is no lock at all — and this is the lock that keeps
+# "production deploys what staging was just shown to serve" true. Without it, a second
+# merge can move staging on while the first run is still on its way to production.
+#
+# A third run replaces the one waiting, which is what should happen: the newest commit
+# is the one worth deploying, and the one it replaced is contained in it.
+#
+# Never cancel in progress. This job does not do the work — Pulumi Deployments does —
+# so cancelling it would abandon a running deployment rather than stop it, and lose
+# the only thing watching how it ends.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  NO_COLOR: 1
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: deploy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: deploy/.nvmrc
+
+      # The remote automation API drives the Pulumi CLI rather than the REST API, so
+      # the binary has to be here even though none of the work happens here.
+      - name: Install Pulumi
+        uses: pulumi/actions@v7.0.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy every environment, in order
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_DEPLOY_TOKEN }}
+          PULUMI_ORGANIZATION: ${{ vars.PULUMI_ORGANIZATION }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: node src/main.ts

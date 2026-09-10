@@ -11,6 +11,10 @@ jobs:
     name: GitHub workflows
     uses: ./.github/workflows/check-gh-workflows.yml
 
+  check-deploy:
+    name: Deploy
+    uses: ./.github/workflows/check-deploy.yml
+
   check-frontend:
     name: Frontend
     uses: ./.github/workflows/check-frontend.yml

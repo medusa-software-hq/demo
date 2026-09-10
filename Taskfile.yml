@@ -5,6 +5,10 @@ includes:
     taskfile: github.Taskfile.yml
     dir: .
 
+  deploy:
+    taskfile: deploy/Taskfile.yml
+    dir: deploy
+
   frontend:
     taskfile: frontend/Taskfile.yml
     dir: frontend
@@ -22,6 +26,8 @@ tasks:
     desc: Apply all automatic fixes
     deps:
       - github:fixLint
+      - deploy:fixFormatting
+      - deploy:fixLint
       - frontend:fixFormatting
       - frontend:fixLint
       - infra:fixFormatting
