@@ -1,4 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
+import { serviceUrl } from './service.ts';
 import { worker } from './worker.ts';
 
 /**
@@ -17,3 +18,6 @@ export const environment = pulumi.getStack();
 
 /** The Worker this app's contents are uploaded to. */
 export const workerName = worker.scriptName;
+
+/** Where this environment's API answers, before anything routes to it. */
+export const apiUrl = serviceUrl;
