@@ -1,0 +1,27 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# What the called workflow needs, granted here because a called workflow can hold no
+# more than its caller does. `id-token` is how it federates into Google Cloud to read
+# the Pulumi credential; nothing here ever sees that credential.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy
+    # The steps live in the platform repository, not here.
+    #
+    # They hold a Pulumi credential that carries the whole account, so what happens to
+    # it must not be this repository's to change. The identity that reads it is issued
+    # only to this workflow file at this ref — `job_workflow_ref` names the *called*
+    # workflow — so copying these steps into this repository would produce an
+    # assertion Google Cloud refuses.
+    #
+    # Which app is deployed is not passed in. It comes from the repository that
+    # called, so asking can only ever deploy this one.
+    uses: medusa-software-hq/platform/.github/workflows/deploy.yml@main
