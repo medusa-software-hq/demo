@@ -1,6 +1,7 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
 import { buildSync } from 'esbuild';
+import { commit } from './commit.ts';
 import { buildFrontend } from './frontend.ts';
 
 /**
@@ -38,6 +39,12 @@ const bundle = (): string => {
     target: TARGET,
     platform: 'neutral',
     write: false,
+
+    // Compiled in rather than passed at runtime. A binding could be changed without
+    // rebuilding, which is exactly what this must not allow: the value is a claim
+    // about which source produced this bundle, so it has to be fixed when the bundle
+    // is.
+    define: { __COMMIT__: JSON.stringify(commit) },
 
     // Stated rather than read from the worker's tsconfig.json, which extends a preset
     // living in that package's node_modules — and the deployment runner installs this
