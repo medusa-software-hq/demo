@@ -1,0 +1,18 @@
+# Required checks this repository does not produce itself, so nothing can derive them
+# from check-pr.yml. Everything reported by our own workflows is found automatically.
+#
+# The Pulumi preview is what turns the gate from "this compiles" into "this plans
+# cleanly against real infrastructure" — the static checks cannot tell you that a
+# change would fail to reach Cloudflare, or would replace the Worker with a bundle that
+# does not build.
+#
+# One per environment, because they are separate stacks and can disagree: an
+# environment can be missing config the other has.
+- demo/production - preview deployment
+- demo/staging - preview deployment
+
+# Deliberately not the `Update (preview)` checks. They post only once Pulumi has opened
+# an update, so a deployment that fails earlier — bad credentials, a missing environment
+# — never reports one at all. Requiring them would leave a pull request waiting on a
+# check that is never coming, exactly when something is badly wrong. The deployment
+# check covers those cases and fails visibly.
