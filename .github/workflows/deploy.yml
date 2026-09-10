@@ -32,6 +32,12 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
 
+    # Where the Pulumi credential lives, and the reason it is reachable from here and
+    # nowhere else. The platform stack lets only jobs running on the default branch
+    # name this environment, so the token cannot be read from a branch, a fork or a
+    # pull request — using it takes a merge, which takes a reviewed pull request.
+    environment: deploy
+
     defaults:
       run:
         working-directory: deploy
