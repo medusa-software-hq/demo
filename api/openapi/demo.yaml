@@ -1,0 +1,107 @@
+openapi: 3.0.3
+info:
+  title: Demo API
+  version: 1.0.0
+  description: >-
+    Counters, each one created and deleted on its own.
+
+paths:
+  /counters:
+    post:
+      operationId: createCounter
+      tags: [RawCounter]
+      summary: Create a counter, starting at zero.
+      responses:
+        "200":
+          description: The counter that was created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawCounterCreatedReply" }
+
+  /counters/{counterId}:
+    delete:
+      operationId: deleteCounter
+      tags: [RawCounter]
+      summary: Delete a counter.
+      parameters:
+        - $ref: "#/components/parameters/CounterId"
+      responses:
+        "204":
+          description: The counter is gone.
+        "404":
+          description: No counter has that id.
+
+  /counters/{counterId}/get:
+    get:
+      operationId: getCount
+      tags: [RawCounter]
+      summary: Read a counter's current count.
+      parameters:
+        - $ref: "#/components/parameters/CounterId"
+      responses:
+        "200":
+          description: The current count.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawCountReply" }
+        "404":
+          description: No counter has that id.
+
+  /counters/{counterId}/increment:
+    post:
+      operationId: incrementCount
+      tags: [RawCounter]
+      summary: Add one to a counter and return its new count.
+      parameters:
+        - $ref: "#/components/parameters/CounterId"
+      responses:
+        "200":
+          description: The count after incrementing.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawCountReply" }
+        "404":
+          description: No counter has that id.
+
+  /counters/{counterId}/decrement:
+    post:
+      operationId: decrementCount
+      tags: [RawCounter]
+      summary: Subtract one from a counter and return its new count.
+      parameters:
+        - $ref: "#/components/parameters/CounterId"
+      responses:
+        "200":
+          description: The count after decrementing.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawCountReply" }
+        "404":
+          description: No counter has that id.
+
+components:
+  parameters:
+    CounterId:
+      name: counterId
+      in: path
+      required: true
+      description: The counter's id.
+      schema: { type: string }
+
+  schemas:
+    RawCounterCreatedReply:
+      type: object
+      required: [counterId]
+      properties:
+        counterId:
+          type: string
+          description: The new counter's id.
+
+    RawCountReply:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          format: int64
+          description: The counter's value.

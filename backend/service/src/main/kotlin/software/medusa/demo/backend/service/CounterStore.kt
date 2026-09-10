@@ -1,0 +1,44 @@
+package software.medusa.demo.backend.service
+
+import software.medusa.demo.core.CounterId
+
+/**
+ * Stores counters, each one identified on its own.
+ *
+ * The read and write operations answer `null` for an id no counter has, rather than creating one: a
+ * counter exists because someone created it, and a typo should not quietly become a counter.
+ */
+interface CounterStore {
+  /**
+   * Creates a counter.
+   *
+   * @return The new counter's id.
+   */
+  fun create(): CounterId
+
+  /**
+   * Deletes the counter [counterId] identifies.
+   *
+   * @return Whether there was such a counter.
+   */
+  fun delete(counterId: CounterId): Boolean
+
+  /**
+   * @return The current value of the counter [counterId] identifies, or `null` if there is none.
+   */
+  fun getCurrent(counterId: CounterId): Long?
+
+  /**
+   * Increments the counter [counterId] identifies.
+   *
+   * @return The incremented value, or `null` if there is no such counter.
+   */
+  fun increment(counterId: CounterId): Long?
+
+  /**
+   * Decrements the counter [counterId] identifies.
+   *
+   * @return The decremented value, or `null` if there is no such counter.
+   */
+  fun decrement(counterId: CounterId): Long?
+}

@@ -1,2 +1,10 @@
 # Task cache
 .task/
+
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# JVM crash dumps
+*.hprof
