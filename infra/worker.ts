@@ -1,6 +1,7 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
 import { buildSync } from 'esbuild';
+import { buildFrontend } from './frontend.ts';
 
 /**
  * What this app serves.
@@ -72,6 +73,26 @@ export const worker = new cloudflare.WorkersScript(
     mainModule: 'index.js',
     compatibilityDate: '2026-09-01',
     content: bundle(),
+
+    /**
+     * The files the browser is served, uploaded alongside the code that serves
+     * everything else.
+     *
+     * A request naming one of them is answered from here without the Worker running
+     * at all, which is both faster and cheaper than answering it from code. Only what
+     * is left over reaches the Worker.
+     */
+    assets: {
+      directory: buildFrontend(),
+      config: {
+        // One page, many routes. A URL that names no file is a route the app knows
+        // about, so the app is the right thing to answer with.
+        notFoundHandling: 'single-page-application',
+      },
+    },
+
+    // How the Worker reaches the files above, for the requests that got past them.
+    bindings: [{ name: 'ASSETS', type: 'assets' }],
   },
   // Adopted rather than created: the platform stack made it, so that a hostname could
   // point at something before this repository had ever deployed.
