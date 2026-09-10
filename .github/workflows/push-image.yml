@@ -1,0 +1,101 @@
+name: Push image
+
+on:
+  workflow_call:
+    outputs:
+      image:
+        description: The service image this commit's sources belong to.
+        value: ${{ jobs.push-image.outputs.image }}
+
+permissions:
+  contents: read
+
+env:
+  NO_COLOR: 1
+
+jobs:
+  push-image:
+    name: Push the service image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # How it federates into Google Cloud. This pool exists for pushing images and
+      # nothing else: the identity it grants may write to this app's registry and has
+      # no other rights anywhere.
+      id-token: write
+
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      # Named after its sources rather than after the commit, so a commit that leaves
+      # the service alone produces a name that already exists — and there is nothing
+      # to build, nothing to push, and nothing to roll out.
+      - name: Work out which image this is
+        id: image
+        env:
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+        run: echo "image=${IMAGE_REGISTRY}/service:$(./backend/image-tag.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_IMAGE_PUSH_PROVIDER }}
+          service_account: ${{ vars.GCP_IMAGE_PUSH_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3.0.1
+
+      # The registry variable names a repository inside a host; the credential helper
+      # is registered against the host on its own. Registering it rather than handing
+      # a token to `docker login` keeps the credential out of a step's inputs.
+      - name: Let Docker use those credentials
+        env:
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+        run: gcloud auth configure-docker "${IMAGE_REGISTRY%%/*}" --quiet
+
+      - name: Has it been built already?
+        id: existing
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          if gcloud artifacts docker images describe "$IMAGE" >/dev/null 2>&1; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE is already built; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v6.0.1
+        if: steps.existing.outputs.built == 'false'
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        if: steps.existing.outputs.built == 'false'
+
+      # The image copies a distribution in rather than building one, because building
+      # it needs the whole repository and a warm Gradle cache, and neither belongs in
+      # an image layer.
+      - name: Build the distribution
+        if: steps.existing.outputs.built == 'false'
+        run: ./gradlew :backend:service:cloud-run:installDist
+
+      # The registry refuses to move a tag that exists, so this name will mean these
+      # bytes for good — which is what lets production run what staging was shown to
+      # serve, rather than a rebuild of the same source that is only probably the same.
+      - name: Build and push the image
+        if: steps.existing.outputs.built == 'false'
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          docker build \
+            --file backend/service/entries/cloud-run/Dockerfile \
+            --tag "$IMAGE" \
+            backend/service/entries/cloud-run
+          docker push "$IMAGE"
+          echo "Pushed $IMAGE" >> "$GITHUB_STEP_SUMMARY"
