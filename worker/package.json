@@ -1,16 +1,11 @@
 {
-  "name": "demo-infra",
+  "name": "demo-worker",
   "private": true,
   "type": "module",
   "version": "0.0.0",
-  "dependencies": {
-    "@pulumi/cloudflare": "^6.0.0",
-    "@pulumi/pulumi": "^3.150.0",
-    "esbuild": "^0.25.0"
-  },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
     "@tsconfig/strictest": "^2.0.8",
-    "@types/node": "^25.0.0",
     "oxfmt": "^0.65.0",
     "oxlint": "^1.80.0",
     "oxlint-tsgolint": "^7.0.2001",
