@@ -1,0 +1,8 @@
+name: demo
+runtime:
+  name: nodejs
+  options:
+    packagemanager: npm
+description: >-
+  The demo application's own infrastructure. One stack per environment, each deploying
+  into the project the platform stack created for it.
