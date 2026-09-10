@@ -31,3 +31,12 @@ jobs:
       # the tests that start the service and call it over HTTP.
       - name: Run `gradle build`
         run: ./gradlew build
+
+      # A Dockerfile that does not build is a broken merge, and this is the cheapest
+      # place to find out. Not pushed: a pull request has no registry to write to.
+      - name: Build the image
+        run: |
+          ./gradlew :backend:service:cloud-run:installDist
+          docker build \
+            --file backend/service/entries/cloud-run/Dockerfile \
+            backend/service/entries/cloud-run

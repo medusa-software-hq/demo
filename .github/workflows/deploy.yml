@@ -12,8 +12,20 @@ permissions:
   id-token: write
 
 jobs:
+  # Before anything is deployed, because what gets deployed is this.
+  #
+  # The image is named after the sources it is built from, so a commit that leaves the
+  # service alone finds it already built and does nothing at all.
+  image:
+    name: Image
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/push-image.yml
+
   deploy:
     name: Deploy
+    needs: image
     # The steps live in the platform repository, not here.
     #
     # They hold a Pulumi credential that carries the whole account, so what happens to
