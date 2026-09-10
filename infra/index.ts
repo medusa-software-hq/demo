@@ -1,4 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
+import { worker } from './worker.ts';
 
 /**
  * The demo application's own infrastructure.
@@ -13,3 +14,6 @@ export const project = new pulumi.Config('gcp').require('project');
 
 /** Which environment this stack is, under the name the platform stack gave it. */
 export const environment = pulumi.getStack();
+
+/** The Worker this app's contents are uploaded to. */
+export const workerName = worker.scriptName;
