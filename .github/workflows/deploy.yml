@@ -4,6 +4,20 @@ on:
   push:
     branches: [main]
 
+  # And once a day, deploying whatever `main` already is.
+  #
+  # Not for the deployment: for the key. The edge holds a service account key that
+  # expires after a week, and a deployment is the only thing here holding the
+  # Cloudflare credential needed to hand over a new one — so rotation has to be a
+  # deployment, and a deployment that only happens on merge is a deployment that
+  # stops happening. Daily against a weekly expiry leaves six missed runs survivable
+  # and the seventh not, which is the property worth having.
+  schedule:
+    # Nothing depends on the hour. Off the hour, because everything else runs on it.
+    - cron: '17 3 * * *'
+
+  workflow_dispatch:
+
 # What the called workflow needs, granted here because a called workflow can hold no
 # more than its caller does. `id-token` is how it federates into Google Cloud to read
 # the Pulumi credential; nothing here ever sees that credential.

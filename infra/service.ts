@@ -63,6 +63,9 @@ const imageRegistry = `${imageLocation}-docker.pkg.dev/${imageProject}/${imageRe
  */
 const imageTag = (): string => execFileSync('../backend/image-tag.sh', { encoding: 'utf8' }).trim();
 
+/** See the annotation below. Any different value will do; the next one up is simplest. */
+const REDEPLOY = '1';
+
 const runService = new gcp.projects.Service('run', {
   project,
   service: 'run.googleapis.com',
@@ -110,13 +113,24 @@ export const service = new gcp.cloudrunv2.Service(
     location: region,
     name: 'service',
 
-    // Reached from the Internet, for now. The Worker in front of it is the only thing
-    // that should be talking to it, and making that true is a later change — until
-    // then this is deliberately open, and there is nothing behind it but counters
-    // that vanish on restart.
+    // Reachable from the Internet, because the Worker in front of it calls from
+    // there — Cloudflare is not inside anything Google would call internal. What
+    // stops anyone else is IAM, not this: the only member holding `run.invoker` is
+    // the account the Worker signs as.
     ingress: 'INGRESS_TRAFFIC_ALL',
 
     template: {
+      /**
+       * Bumped to force a new revision.
+       *
+       * Cloud Run creates one only when the template changes, and abandons one that
+       * failed to start — so when the fix for a broken revision is not a change to
+       * this service, this is the change. It means nothing to Cloud Run and nothing
+       * to the container; the reason for any particular bump belongs in the commit
+       * that made it.
+       */
+      annotations: { 'medusa.software/redeploy': REDEPLOY },
+
       containers: [
         {
           image: pulumi.interpolate`${imageRegistry}/service:${imageTag()}`,
@@ -158,18 +172,6 @@ export const service = new gcp.cloudrunv2.Service(
     dependsOn: registryReader,
   },
 );
-
-/**
- * Answerable by anyone, which is the point for now: there is no sign-in yet, and the
- * page in front of it is public too.
- */
-new gcp.cloudrunv2.ServiceIamMember('public', {
-  project,
-  location: service.location,
-  name: service.name,
-  role: 'roles/run.invoker',
-  member: 'allUsers',
-});
 
 /** Where the service answers. Cloud Run chooses this; nothing here can. */
 export const serviceUrl = service.uri;

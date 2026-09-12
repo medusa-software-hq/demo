@@ -1,7 +1,9 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
 import { buildSync } from 'esbuild';
+import { edgeKeyJson } from './edge-identity.ts';
 import { buildFrontend } from './frontend.ts';
+import { serviceUrl } from './service.ts';
 
 /**
  * What this app serves.
@@ -91,8 +93,31 @@ export const worker = new cloudflare.WorkersScript(
       },
     },
 
-    // How the Worker reaches the files above, for the requests that got past them.
-    bindings: [{ name: 'ASSETS', type: 'assets' }],
+    bindings: [
+      // How the Worker reaches the files above, for the requests that got past them.
+      { name: 'ASSETS', type: 'assets' },
+
+      /**
+       * And how it reaches the API, for the requests that are for the API.
+       *
+       * The URL is Cloud Run's to choose, so it is read from the service rather than
+       * written down here — which also orders the two, since a Worker told to call an
+       * address that does not exist yet would serve errors until the next deployment.
+       *
+       * The same value twice over, in effect: it is where the request goes, and it is
+       * the audience of the token that goes with it. Cloud Run checks the second
+       * against itself, so a token minted for anywhere else is refused.
+       */
+      { name: 'API_TARGET', type: 'plain_text', text: serviceUrl },
+
+      /**
+       * What it signs with.
+       *
+       * `secret_text` rather than `plain_text` so it is write-only at Cloudflare:
+       * deployable, and not readable back out of the dashboard or the API.
+       */
+      { name: 'GCP_SA_KEY', type: 'secret_text', text: edgeKeyJson },
+    ],
   },
   // Adopted rather than created: the platform stack made it, so that a hostname could
   // point at something before this repository had ever deployed.
