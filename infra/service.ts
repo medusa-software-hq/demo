@@ -1,0 +1,168 @@
+import * as gcp from '@pulumi/gcp';
+import * as pulumi from '@pulumi/pulumi';
+import { execFileSync } from 'node:child_process';
+
+/**
+ * What answers the API, and where it runs.
+ *
+ * Everything about running on Cloud Run is decided here, including the three steps
+ * that make an image reachable: enabling the service, bringing its agent into
+ * existence, and letting that agent read this app's registry. The platform stack
+ * hands over a project and a registry the app administers; what runs in one and pulls
+ * from the other is this program's business. An app that moved to a virtual machine
+ * would rewrite this file and nothing above it.
+ *
+ * The image is built and pushed before this ever runs — by a workflow, on merge —
+ * because a deployment that also built its own container would be free to deploy
+ * something no pull request ever saw. This only says which image, and the answer is
+ * whichever one this commit's sources produced.
+ */
+
+const config = new pulumi.Config();
+const gcpConfig = new pulumi.Config('gcp');
+
+const project = gcpConfig.require('project');
+
+/** Both handed down: the registry is in a project this app cannot see. */
+const region = gcpConfig.require('region');
+const imageRegistry = config.require('imageRegistry');
+
+/**
+ * The same registry, taken apart, because naming one to IAM and naming one to Docker
+ * are different shapes of the same fact.
+ *
+ * `<location>-docker.pkg.dev/<project>/<repository>` is Artifact Registry's own
+ * published form rather than anything the platform stack invented, so reading it here
+ * is reading a standard identifier, not a second copy of somebody's rule. Asking for
+ * the pieces separately would be four settings where one will do, and four chances
+ * for them to disagree.
+ */
+const [registryHost, registryProject, registryName] = imageRegistry.split('/');
+
+if (registryHost === undefined || registryProject === undefined || registryName === undefined) {
+  throw new Error(`Expected <host>/<project>/<repository>, got ${imageRegistry}`);
+}
+
+const registryLocation = registryHost.replace(/-docker\.pkg\.dev$/, '');
+
+if (registryLocation === registryHost) {
+  throw new Error(`Expected an Artifact Registry host, got ${registryHost}`);
+}
+
+/**
+ * Every plan carries one warning from the provider, and it is expected:
+ *
+ *   failed to get regions list: … constraints/gcp.restrictServiceUsage … for
+ *   'compute.googleapis.com'
+ *
+ * The provider lists Compute regions when it starts, and the organization denies
+ * Compute to keep apps away from things that bill by the hour. Nothing here needs it
+ * — Cloud Run is serverless and plans correctly without it — and the warning appears
+ * whether or not a region is configured, so there is nothing to configure away.
+ * Silencing it would mean allowing an app to run virtual machines, which is a worse
+ * trade than a warning somebody has written down.
+ */
+
+/**
+ * The name the image was pushed under, worked out the same way the workflow that
+ * pushed it worked it out — by running the same script.
+ *
+ * Repeating the rule here instead would be two definitions of one name, and the
+ * failure would be a deployment asking for an image nobody built.
+ */
+const imageTag = (): string => execFileSync('../backend/image-tag.sh', { encoding: 'utf8' }).trim();
+
+const runService = new gcp.projects.Service('run', {
+  project,
+  service: 'run.googleapis.com',
+  disableOnDestroy: false,
+});
+
+/**
+ * The account that pulls the image, which is not the account that deploys it.
+ *
+ * Cloud Run pulls as the project's own agent. Asking for the identity returns the
+ * name it will have; what brings the account into existence is the service being
+ * enabled, so this waits for that — and the grant below waits for this, because
+ * granting to a name nothing has created is refused.
+ */
+const runAgent = new gcp.projects.ServiceIdentity(
+  'run-agent',
+  { project, service: 'run.googleapis.com' },
+  { dependsOn: runService },
+);
+
+/**
+ * Read on this app's registry, granted by this app.
+ *
+ * The registry lives in a project this program cannot otherwise see, and the app is
+ * its administrator — which is exactly so that this grant can be made here, by
+ * whoever knows what needs to pull, rather than guessed at by a stack that should not
+ * know what this app runs on.
+ */
+new gcp.artifactregistry.RepositoryIamMember(
+  'registry-reader',
+  {
+    project: registryProject,
+    location: registryLocation,
+    repository: registryName,
+    role: 'roles/artifactregistry.reader',
+    member: runAgent.member,
+  },
+  { dependsOn: runAgent },
+);
+
+export const service = new gcp.cloudrunv2.Service('service', {
+  project,
+  location: region,
+  name: 'service',
+
+  // Reached from the Internet, for now. The Worker in front of it is the only thing
+  // that should be talking to it, and making that true is a later change — until
+  // then this is deliberately open, and there is nothing behind it but counters
+  // that vanish on restart.
+  ingress: 'INGRESS_TRAFFIC_ALL',
+
+  template: {
+    containers: [
+      {
+        image: pulumi.interpolate`${imageRegistry}/service:${imageTag()}`,
+
+        // The JVM wants more than the 512Mi default before it will start promptly.
+        resources: { limits: { cpu: '1', memory: '1Gi' } },
+      },
+    ],
+
+    /**
+     * One instance, at most.
+     *
+     * The counters live in the process, so a second instance would hold a second
+     * set of them and which one a request reached would decide what it saw. That
+     * is not a scaling limit to be raised later — it is what an in-memory store
+     * means, and raising it without moving the store somewhere shared would produce
+     * a bug that looks like the service forgetting things at random.
+     *
+     * Down to zero when nothing is asking, which costs nothing and forgets
+     * everything. Both are fine for what this is.
+     */
+    scaling: { minInstanceCount: 0, maxInstanceCount: 1 },
+  },
+
+  // Exploration phase: `destroy` should actually destroy.
+  deletionProtection: false,
+});
+
+/**
+ * Answerable by anyone, which is the point for now: there is no sign-in yet, and the
+ * page in front of it is public too.
+ */
+new gcp.cloudrunv2.ServiceIamMember('public', {
+  project,
+  location: service.location,
+  name: service.name,
+  role: 'roles/run.invoker',
+  member: 'allUsers',
+});
+
+/** Where the service answers. Cloud Run chooses this; nothing here can. */
+export const serviceUrl = service.uri;
