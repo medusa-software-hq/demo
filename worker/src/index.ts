@@ -54,9 +54,24 @@ const callApi = async (request: Request, pathname: string, env: Env): Promise<Re
 
   const headers = new Headers(request.headers);
 
-  // Whose name the upstream request travels under. Free to use while nothing
-  // authenticates the caller of this Worker; when something does, the browser's own
-  // credential wants this header and Cloud Run's moves to `X-Serverless-Authorization`.
+  /**
+   * Everything the caller sent is forwarded, except what decides who we are.
+   *
+   * Cloud Run accepts `x-serverless-authorization` in place of `authorization` for
+   * its own IAM check — that is what the header is for, so that an application can
+   * receive an end user's `authorization` untouched. Which means a caller who sets it
+   * is taking part in a decision that is not theirs. Nobody can get in that way today,
+   * since the decision still ends at IAM and only one account holds `run.invoker`; the
+   * worst they manage is to have their own request refused. But the arrangement below
+   * is the one that changes: when there is an end user to authenticate, this Worker's
+   * credential moves to that header, and a caller able to set it would be contending
+   * with the credential that says we are us. Dropped now, while it costs a line.
+   */
+  headers.delete('x-serverless-authorization');
+
+  // Whose name the upstream request travels under. `authorization` is free to use
+  // while nothing authenticates the caller of this Worker; when something does, the
+  // browser's own credential wants this header and ours moves to the one above.
   headers.set('authorization', `Bearer ${idToken}`);
 
   // The API is reached at a name this origin does not have, and Cloud Run routes by
