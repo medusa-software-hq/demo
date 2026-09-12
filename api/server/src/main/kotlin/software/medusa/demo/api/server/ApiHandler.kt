@@ -1,6 +1,7 @@
 package software.medusa.demo.api.server
 
 import software.medusa.demo.api.ApiTypes
+import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 /**
@@ -17,6 +18,14 @@ interface ApiHandler {
    * @return The new counter's id.
    */
   suspend fun handleCreateCounter(): CounterId
+
+  /**
+   * Lists every counter.
+   *
+   * No sealed type, because there is only one outcome: no counters at all is an empty list, not a
+   * different answer.
+   */
+  suspend fun handleListCounters(): List<Counter>
 
   /** Deletes the counter [counterId] identifies. */
   suspend fun handleDeleteCounter(counterId: CounterId): ApiTypes.DeleteCounterResponse

@@ -15,6 +15,7 @@ import software.medusa.demo.api.raw.client.ApiException
 import software.medusa.demo.api.raw.client.ApiResponse
 import software.medusa.demo.api.raw.client.ApiServerException
 import software.medusa.demo.api.raw.client.RawCounterClient
+import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 private val logger = LoggerFactory.getLogger(ApiClient::class.java)
@@ -79,6 +80,29 @@ class ApiClient(
             when (response.statusCode) {
               HttpURLConnection.HTTP_OK ->
                   CounterId(value = response.requireData(operation = "createCounter").counterId)
+
+              else -> null
+            }
+          },
+          // The contract gives this operation no 4xx at all.
+          onClientError = { null },
+      )
+
+  /**
+   * Lists every counter.
+   *
+   * @return The counters, oldest first.
+   */
+  suspend fun listCounters(): List<Counter> =
+      callRaw(
+          operation = "listCounters",
+          call = { rawCounterClient.listCounters() },
+          onSuccess = { response ->
+            when (response.statusCode) {
+              HttpURLConnection.HTTP_OK ->
+                  response.requireData(operation = "listCounters").counters.map { rawCounter ->
+                    Counter(id = CounterId(value = rawCounter.counterId), count = rawCounter.count)
+                  }
 
               else -> null
             }

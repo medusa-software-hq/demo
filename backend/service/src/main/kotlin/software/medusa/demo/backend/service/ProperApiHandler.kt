@@ -2,6 +2,7 @@ package software.medusa.demo.backend.service
 
 import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.api.server.ApiHandler
+import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 /** Answers the API out of a [CounterStore]. */
@@ -9,6 +10,8 @@ class ProperApiHandler(
     private val counterStore: CounterStore,
 ) : ApiHandler {
   override suspend fun handleCreateCounter(): CounterId = counterStore.create()
+
+  override suspend fun handleListCounters(): List<Counter> = counterStore.listAll()
 
   override suspend fun handleDeleteCounter(counterId: CounterId): ApiTypes.DeleteCounterResponse =
       when (counterStore.delete(counterId = counterId)) {

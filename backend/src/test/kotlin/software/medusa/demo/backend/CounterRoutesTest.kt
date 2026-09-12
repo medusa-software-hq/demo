@@ -8,6 +8,7 @@ import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.api.client.ApiClient
 import software.medusa.demo.backend.stack.BackendStackHandle
 import software.medusa.demo.backend.stack.BackendStackStarter
+import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 class CounterRoutesTest {
@@ -102,6 +103,49 @@ class CounterRoutesTest {
   }
 
   @Test
+  fun `listing answers the counters that were created, oldest first`() = runBlocking {
+    BackendStackStarter.start().use { stackHandle ->
+      val apiClient = stackHandle.apiClient()
+
+      assertEquals(
+          expected = emptyList(),
+          actual = assertApiCallSucceeds { apiClient.listCounters() },
+      )
+
+      val firstCounterId = assertApiCallSucceeds { apiClient.createCounter() }
+      val secondCounterId = assertApiCallSucceeds { apiClient.createCounter() }
+
+      assertApiCallSucceeds { apiClient.incrementCount(counterId = secondCounterId) }
+
+      // The order is by creation, so the one that moved has not moved in the list.
+      assertEquals(
+          expected =
+              listOf(
+                  Counter(id = firstCounterId, count = 0),
+                  Counter(id = secondCounterId, count = 1),
+              ),
+          actual = assertApiCallSucceeds { apiClient.listCounters() },
+      )
+    }
+  }
+
+  @Test
+  fun `listing stops reporting a counter that was deleted`() = runBlocking {
+    BackendStackStarter.start().use { stackHandle ->
+      val apiClient = stackHandle.apiClient()
+      val keptCounterId = assertApiCallSucceeds { apiClient.createCounter() }
+      val doomedCounterId = assertApiCallSucceeds { apiClient.createCounter() }
+
+      assertApiCallSucceeds { apiClient.deleteCounter(counterId = doomedCounterId) }
+
+      assertEquals(
+          expected = listOf(Counter(id = keptCounterId, count = 0)),
+          actual = assertApiCallSucceeds { apiClient.listCounters() },
+      )
+    }
+  }
+
+  @Test
   fun `a deleted counter is gone`() = runBlocking {
     BackendStackStarter.start().use { stackHandle ->
       val apiClient = stackHandle.apiClient()
@@ -155,6 +199,13 @@ class CounterRoutesTest {
           expected = ApiTypes.GetCountResponse.NotFound,
           actual =
               assertApiCallSucceeds { stackHandle.apiClient().getCount(counterId = counterId) },
+      )
+
+      // And it does not merely deny knowing that one: it has nothing at all. Which is what a
+      // page reaching a restarted service should be told, rather than a list of the dead.
+      assertEquals(
+          expected = emptyList(),
+          actual = assertApiCallSucceeds { stackHandle.apiClient().listCounters() },
       )
     }
   }

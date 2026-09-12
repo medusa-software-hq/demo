@@ -1,5 +1,6 @@
 package software.medusa.demo.backend.service
 
+import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 /**
@@ -15,6 +16,15 @@ interface CounterStore {
    * @return The new counter's id.
    */
   fun create(): CounterId
+
+  /**
+   * @return Every counter, oldest first.
+   *
+   * Ordered, because the only caller renders them in a list, and a set that came back in a
+   * different arrangement each time would move under the reader's cursor. The order is by creation
+   * and not by value, so incrementing a counter does not make it jump.
+   */
+  fun listAll(): List<Counter>
 
   /**
    * Deletes the counter [counterId] identifies.
