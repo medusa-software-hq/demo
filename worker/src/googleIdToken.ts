@@ -1,3 +1,5 @@
+import { importPKCS8, SignJWT } from 'jose';
+
 /**
  * Google ID tokens, from a service account key.
  *
@@ -6,12 +8,17 @@
  * hand what a Google client library would do: sign an assertion, exchange it for an ID
  * token whose audience is the service being called.
  *
- * The same mechanism, and deliberately the same shape, as the one in `todo-board`. Two
- * spellings of one protocol would be two places to be wrong about it.
+ * The exchange is the part written out here. The signing is not: `jose` knows what a
+ * PKCS#8 key looks like and what a JWT looks like, and both are things it is easy to
+ * be quietly wrong about — a key in the other PEM format, a base64url alphabet with
+ * padding left on. Those produce a signature Google rejects, and no clue as to why.
  */
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const JWT_BEARER_GRANT = 'urn:ietf:params:oauth:grant-type:jwt-bearer';
+
+/** What Google issues service account keys for, and so what the assertion is signed with. */
+const SIGNING_ALGORITHM = 'RS256';
 
 /** How long an assertion is valid. Google rejects anything longer than an hour. */
 const ASSERTION_LIFETIME_SECONDS = 3600;
@@ -44,7 +51,7 @@ export class GoogleIdTokenMinter {
   constructor(private readonly key: ServiceAccountKey) {
     // Imported once and awaited per call: parsing the key on every request would be
     // work repeated for nothing, and one isolate may serve very many.
-    this.signingKey = importPrivateKey(key.private_key);
+    this.signingKey = importPKCS8(key.private_key, SIGNING_ALGORITHM);
   }
 
   /** An ID token for [audience], minted or reused. */
@@ -95,60 +102,21 @@ export class GoogleIdTokenMinter {
     return body.id_token;
   }
 
-  /** The signed JWT that is exchanged for an ID token. */
+  /**
+   * The signed JWT that is exchanged for an ID token.
+   *
+   * Two audiences, which is the part worth reading twice: `aud` is who the assertion
+   * is presented to — Google's token endpoint — while `target_audience` is what the
+   * token it buys will be for. Cloud Run checks the second against itself.
+   */
   private async signAssertion(audience: string, nowSeconds: number): Promise<string> {
-    const header = { alg: 'RS256', typ: 'JWT' };
-
-    const claims = {
-      iss: this.key.client_email,
-      sub: this.key.client_email,
-      // What the assertion is *for*: Google's token endpoint, not the service called.
-      aud: TOKEN_ENDPOINT,
-      iat: nowSeconds,
-      exp: nowSeconds + ASSERTION_LIFETIME_SECONDS,
-      // What the minted token will be for. Cloud Run checks this against itself.
-      target_audience: audience,
-    };
-
-    const signingInput = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(claims))}`;
-
-    const signature = await crypto.subtle.sign(
-      'RSASSA-PKCS1-v1_5',
-      await this.signingKey,
-      new TextEncoder().encode(signingInput),
-    );
-
-    return `${signingInput}.${base64UrlBytes(new Uint8Array(signature))}`;
+    return new SignJWT({ target_audience: audience })
+      .setProtectedHeader({ alg: SIGNING_ALGORITHM, typ: 'JWT' })
+      .setIssuer(this.key.client_email)
+      .setSubject(this.key.client_email)
+      .setAudience(TOKEN_ENDPOINT)
+      .setIssuedAt(nowSeconds)
+      .setExpirationTime(nowSeconds + ASSERTION_LIFETIME_SECONDS)
+      .sign(await this.signingKey);
   }
-}
-
-async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const body = pem
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\s+/g, '');
-
-  const der = Uint8Array.from(atob(body), (character) => character.charCodeAt(0));
-
-  return crypto.subtle.importKey(
-    'pkcs8',
-    der,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-}
-
-function base64Url(text: string): string {
-  return base64UrlBytes(new TextEncoder().encode(text));
-}
-
-function base64UrlBytes(bytes: Uint8Array): string {
-  let binary = '';
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

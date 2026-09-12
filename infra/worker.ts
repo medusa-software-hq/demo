@@ -4,6 +4,7 @@ import { buildSync } from 'esbuild';
 import { edgeKeyJson } from './edge-identity.ts';
 import { buildFrontend } from './frontend.ts';
 import { serviceUrl } from './service.ts';
+import { execFileSync } from 'node:child_process';
 
 /**
  * What this app serves.
@@ -19,7 +20,8 @@ const accountId = config.require('cloudflareAccountId');
 const scriptName = config.require('workerName');
 
 /** Relative to the Pulumi project, which is `infra`. */
-const ENTRY = '../worker/src/index.ts';
+const PACKAGE = '../worker';
+const ENTRY = `${PACKAGE}/src/index.ts`;
 
 /** Kept in step with the worker's own `tsconfig.json`, which type-checking uses. */
 const TARGET = 'es2022';
@@ -33,6 +35,12 @@ const TARGET = 'es2022';
  * is planned is what was just compiled from source.
  */
 const bundle = (): string => {
+  // The same reason `frontend.ts` does this: the deployment runner installs the
+  // dependencies of the Pulumi project and no others, so on a runner there is nothing
+  // here for the bundler to resolve `jose` from. It resolves from the importing file's
+  // directory, not from this one, so infra having its own copy would not help.
+  execFileSync('npm', ['ci'], { cwd: PACKAGE, stdio: 'inherit' });
+
   const { outputFiles } = buildSync({
     entryPoints: [ENTRY],
     bundle: true,

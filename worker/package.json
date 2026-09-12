@@ -10,5 +10,8 @@
     "oxlint": "^1.80.0",
     "oxlint-tsgolint": "^7.0.2001",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "jose": "^6.2.12"
   }
 }
