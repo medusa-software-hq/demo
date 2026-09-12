@@ -29,6 +29,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate the API client
+        # `tsc` follows imports rather than the gitignore, so the generated client has to be
+        # there before anything type-checks — the Taskfile's dependency does not help here,
+        # because these steps call the tools directly and never go through Task.
+        #
+        # The command lives in `package.json`, so this, the Taskfile and the deployment's
+        # `npm run build` all run the same one.
+        run: npm run api
+
       - name: Run `oxfmt`
         run: npx --no-install oxfmt --check "**/*.{ts,tsx,css}"
 
