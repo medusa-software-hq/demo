@@ -30,7 +30,9 @@ const project = config.require('project');
  */
 const edge = new gcp.serviceaccount.Account('edge', {
   project,
-  accountId: 'edge',
+  // Not `edge`, which reads better and is refused: Google wants at least six
+  // characters here.
+  accountId: 'edge-invoker',
   displayName: 'The Worker in front of this app',
 });
 
@@ -41,7 +43,7 @@ const edge = new gcp.serviceaccount.Account('edge', {
  * anyone can still send it a request — but now only one caller is answered, and the
  * Worker is the only thing holding what it takes to be that caller.
  */
-new gcp.cloudrunv2.ServiceIamMember('edge-invoker', {
+new gcp.cloudrunv2.ServiceIamMember('edge-may-invoke', {
   project,
   location: service.location,
   name: service.name,
