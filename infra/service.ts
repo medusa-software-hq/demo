@@ -25,29 +25,20 @@ const project = gcpConfig.require('project');
 
 /** Both handed down: the registry is in a project this app cannot see. */
 const region = gcpConfig.require('region');
-const imageRegistry = config.require('imageRegistry');
-
 /**
- * The same registry, taken apart, because naming one to IAM and naming one to Docker
- * are different shapes of the same fact.
+ * Where this app's images live, in the three parts a registry has.
  *
- * `<location>-docker.pkg.dev/<project>/<repository>` is Artifact Registry's own
- * published form rather than anything the platform stack invented, so reading it here
- * is reading a standard identifier, not a second copy of somebody's rule. Asking for
- * the pieces separately would be four settings where one will do, and four chances
- * for them to disagree.
+ * Handed over apart rather than joined, so each API can be given the shape it asks
+ * for: IAM wants them separately, and a container reference wants them run together.
+ * Taking one apart to get the other would be reading a string somebody else built and
+ * hoping it was built the way this expects.
  */
-const [registryHost, registryProject, registryName] = imageRegistry.split('/');
+const imageProject = config.require('imageProject');
+const imageLocation = config.require('imageLocation');
+const imageRepository = config.require('imageRepository');
 
-if (registryHost === undefined || registryProject === undefined || registryName === undefined) {
-  throw new Error(`Expected <host>/<project>/<repository>, got ${imageRegistry}`);
-}
-
-const registryLocation = registryHost.replace(/-docker\.pkg\.dev$/, '');
-
-if (registryLocation === registryHost) {
-  throw new Error(`Expected an Artifact Registry host, got ${registryHost}`);
-}
+/** Artifact Registry's published form, assembled where it is needed. */
+const imageRegistry = `${imageLocation}-docker.pkg.dev/${imageProject}/${imageRepository}`;
 
 /**
  * Every plan carries one warning from the provider, and it is expected:
@@ -103,9 +94,9 @@ const runAgent = new gcp.projects.ServiceIdentity(
 new gcp.artifactregistry.RepositoryIamMember(
   'registry-reader',
   {
-    project: registryProject,
-    location: registryLocation,
-    repository: registryName,
+    project: imageProject,
+    location: imageLocation,
+    repository: imageRepository,
     role: 'roles/artifactregistry.reader',
     member: runAgent.member,
   },
