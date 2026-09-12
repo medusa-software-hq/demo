@@ -1,7 +1,10 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
 import { buildSync } from 'esbuild';
+import { edgeKeyJson } from './edge-identity.ts';
 import { buildFrontend } from './frontend.ts';
+import { serviceUrl } from './service.ts';
+import { execFileSync } from 'node:child_process';
 
 /**
  * What this app serves.
@@ -17,7 +20,8 @@ const accountId = config.require('cloudflareAccountId');
 const scriptName = config.require('workerName');
 
 /** Relative to the Pulumi project, which is `infra`. */
-const ENTRY = '../worker/src/index.ts';
+const PACKAGE = '../worker';
+const ENTRY = `${PACKAGE}/src/index.ts`;
 
 /** Kept in step with the worker's own `tsconfig.json`, which type-checking uses. */
 const TARGET = 'es2022';
@@ -31,6 +35,12 @@ const TARGET = 'es2022';
  * is planned is what was just compiled from source.
  */
 const bundle = (): string => {
+  // The same reason `frontend.ts` does this: the deployment runner installs the
+  // dependencies of the Pulumi project and no others, so on a runner there is nothing
+  // here for the bundler to resolve `jose` from. It resolves from the importing file's
+  // directory, not from this one, so infra having its own copy would not help.
+  execFileSync('npm', ['ci'], { cwd: PACKAGE, stdio: 'inherit' });
+
   const { outputFiles } = buildSync({
     entryPoints: [ENTRY],
     bundle: true,
@@ -91,8 +101,31 @@ export const worker = new cloudflare.WorkersScript(
       },
     },
 
-    // How the Worker reaches the files above, for the requests that got past them.
-    bindings: [{ name: 'ASSETS', type: 'assets' }],
+    bindings: [
+      // How the Worker reaches the files above, for the requests that got past them.
+      { name: 'ASSETS', type: 'assets' },
+
+      /**
+       * And how it reaches the API, for the requests that are for the API.
+       *
+       * The URL is Cloud Run's to choose, so it is read from the service rather than
+       * written down here — which also orders the two, since a Worker told to call an
+       * address that does not exist yet would serve errors until the next deployment.
+       *
+       * The same value twice over, in effect: it is where the request goes, and it is
+       * the audience of the token that goes with it. Cloud Run checks the second
+       * against itself, so a token minted for anywhere else is refused.
+       */
+      { name: 'API_TARGET', type: 'plain_text', text: serviceUrl },
+
+      /**
+       * What it signs with.
+       *
+       * `secret_text` rather than `plain_text` so it is write-only at Cloudflare:
+       * deployable, and not readable back out of the dashboard or the API.
+       */
+      { name: 'GCP_SA_KEY', type: 'secret_text', text: edgeKeyJson },
+    ],
   },
   // Adopted rather than created: the platform stack made it, so that a hostname could
   // point at something before this repository had ever deployed.

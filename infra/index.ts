@@ -1,4 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
+import { edgeServiceAccount } from './edge-identity.ts';
 import { serviceUrl } from './service.ts';
 import { worker } from './worker.ts';
 
@@ -19,5 +20,8 @@ export const environment = pulumi.getStack();
 /** The Worker this app's contents are uploaded to. */
 export const workerName = worker.scriptName;
 
-/** Where this environment's API answers, before anything routes to it. */
+/** Where this environment's API answers, behind the Worker that routes to it. */
 export const apiUrl = serviceUrl;
+
+/** Who the Worker calls the API as. The only member holding `run.invoker` on it. */
+export const edgeIdentity = edgeServiceAccount;
