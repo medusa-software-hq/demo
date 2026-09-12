@@ -47,45 +47,64 @@ const minterFor = (serviceAccountKeyJson: string): GoogleIdTokenMinter => {
 };
 
 /**
- * What a caller sends and this Worker does not pass on.
+ * Credentials Google Cloud will authenticate a request with, and which are therefore
+ * ours to send and never a caller's.
  *
- * Deliberately a rule rather than a list of things that have gone wrong. Everything
- * above the last two is the set HTTP defines as hop-by-hop (RFC 9110 §7.6.1): they
- * describe a conversation between a peer and its immediate neighbour, and a proxy
- * that relays them is misreporting one connection's terms as another's. Applying the
- * whole set is the only way to stop discovering it one header at a time.
+ * Two products, one design. Cloud Run reads `x-serverless-authorization`, and IAP
+ * reads `proxy-authorization` — both exist so that infrastructure can be given a
+ * token without spending the `authorization` header an application may want for
+ * itself. IAP is explicit about the consequence: a valid ID token there authorizes
+ * the request, and `authorization` is then passed through "without processing the
+ * content".
  *
- * What remains open is a different question and not answerable here. `cookie`,
- * `x-forwarded-for` and the rest are forwarded, and are harmless only because the API
- * behind this reads none of them — no sessions, nothing keyed on an address. That is
- * a fact about today's backend rather than a property of this Worker, and the day it
- * stops being true, spoofing any of them through here becomes trivial.
+ * So these are not headers, they are entrances. Nothing gets in through them today —
+ * the decision still ends at IAM, one account holds `run.invoker`, and no IAP stands
+ * in front of anything here. What makes them worth naming is that both are the header
+ * this Worker's own credential moves to the moment there is an end user to
+ * authenticate, and a caller who can set one is arguing with the credential that says
+ * we are us.
+ *
+ * https://cloud.google.com/iap/docs/authentication-howto
  */
-const NOT_FORWARDED = [
+const UPSTREAM_CREDENTIALS = ['proxy-authorization', 'x-serverless-authorization'] as const;
+
+/**
+ * What belongs to one hop and must not reach the next.
+ *
+ * The set HTTP defines (RFC 9110 §7.6.1), applied as a rule rather than discovered a
+ * header at a time. They describe a conversation between a peer and its immediate
+ * neighbour, so relaying them reports one connection's terms as another's.
+ *
+ * `proxy-authorization` belongs here too, and is listed above instead, under the
+ * stronger of its two reasons.
+ */
+const HOP_BY_HOP = [
   'connection',
   'keep-alive',
   'proxy-authenticate',
-  'proxy-authorization',
   'te',
   'trailer',
   'transfer-encoding',
   'upgrade',
+] as const;
+
+/**
+ * Everything this Worker takes off a request before passing it on.
+ *
+ * What stays is a different question, and not answerable here. `cookie`,
+ * `x-forwarded-for` and the rest still travel, and are harmless only because the API
+ * behind this reads none of them — no sessions, nothing keyed on an address. That is
+ * a fact about today's backend rather than a property of this Worker, and on the day
+ * it stops being true, spoofing any of them through here becomes trivial.
+ */
+const NOT_FORWARDED = [
+  ...HOP_BY_HOP,
+  ...UPSTREAM_CREDENTIALS,
 
   // Addressed to this origin. Cloud Run routes by the name in the URL, and `fetch`
   // derives that itself; leaving ours on would address the request to a service that
   // does not exist.
   'host',
-
-  /**
-   * Cloud Run accepts this in place of `authorization` for its own IAM check — that
-   * is the header's purpose, so an application can receive an end user's
-   * `authorization` untouched. A caller who sets it is taking part in a decision that
-   * is not theirs. Nobody gets in that way today, since the decision still ends at IAM
-   * and one account holds `run.invoker`; the worst they manage is to have their own
-   * request refused. It matters because of what changes next: when there is an end
-   * user to authenticate, this Worker's credential moves here.
-   */
-  'x-serverless-authorization',
 ] as const;
 
 /** The request as the API should see it, carrying proof that this Worker sent it. */
