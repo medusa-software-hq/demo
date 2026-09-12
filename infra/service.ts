@@ -5,12 +5,12 @@ import { execFileSync } from 'node:child_process';
 /**
  * What answers the API, and where it runs.
  *
- * Cloud Run is enabled by the platform stack rather than here, which looks like the
- * wrong side of the boundary and is not: a service pulls its image as the project's
- * Cloud Run agent, and that account does not exist until the service is enabled. The
- * grant that lets it read this app's registry is the platform stack's to make, so the
- * enablement it depends on has to be as well. Two owners of one fact would take turns
- * undoing each other.
+ * Everything about running on Cloud Run is decided here, including the three steps
+ * that make an image reachable: enabling the service, bringing its agent into
+ * existence, and letting that agent read this app's registry. The platform stack
+ * hands over a project and a registry the app administers; what runs in one and pulls
+ * from the other is this program's business. An app that moved to a virtual machine
+ * would rewrite this file and nothing above it.
  *
  * The image is built and pushed before this ever runs — by a workflow, on merge —
  * because a deployment that also built its own container would be free to deploy
@@ -26,6 +26,28 @@ const project = gcpConfig.require('project');
 /** Both handed down: the registry is in a project this app cannot see. */
 const region = gcpConfig.require('region');
 const imageRegistry = config.require('imageRegistry');
+
+/**
+ * The same registry, taken apart, because naming one to IAM and naming one to Docker
+ * are different shapes of the same fact.
+ *
+ * `<location>-docker.pkg.dev/<project>/<repository>` is Artifact Registry's own
+ * published form rather than anything the platform stack invented, so reading it here
+ * is reading a standard identifier, not a second copy of somebody's rule. Asking for
+ * the pieces separately would be four settings where one will do, and four chances
+ * for them to disagree.
+ */
+const [registryHost, registryProject, registryName] = imageRegistry.split('/');
+
+if (registryHost === undefined || registryProject === undefined || registryName === undefined) {
+  throw new Error(`Expected <host>/<project>/<repository>, got ${imageRegistry}`);
+}
+
+const registryLocation = registryHost.replace(/-docker\.pkg\.dev$/, '');
+
+if (registryLocation === registryHost) {
+  throw new Error(`Expected an Artifact Registry host, got ${registryHost}`);
+}
 
 /**
  * Every plan carries one warning from the provider, and it is expected:
@@ -49,6 +71,46 @@ const imageRegistry = config.require('imageRegistry');
  * failure would be a deployment asking for an image nobody built.
  */
 const imageTag = (): string => execFileSync('../backend/image-tag.sh', { encoding: 'utf8' }).trim();
+
+const runService = new gcp.projects.Service('run', {
+  project,
+  service: 'run.googleapis.com',
+  disableOnDestroy: false,
+});
+
+/**
+ * The account that pulls the image, which is not the account that deploys it.
+ *
+ * Cloud Run pulls as the project's own agent. Asking for the identity returns the
+ * name it will have; what brings the account into existence is the service being
+ * enabled, so this waits for that — and the grant below waits for this, because
+ * granting to a name nothing has created is refused.
+ */
+const runAgent = new gcp.projects.ServiceIdentity(
+  'run-agent',
+  { project, service: 'run.googleapis.com' },
+  { dependsOn: runService },
+);
+
+/**
+ * Read on this app's registry, granted by this app.
+ *
+ * The registry lives in a project this program cannot otherwise see, and the app is
+ * its administrator — which is exactly so that this grant can be made here, by
+ * whoever knows what needs to pull, rather than guessed at by a stack that should not
+ * know what this app runs on.
+ */
+new gcp.artifactregistry.RepositoryIamMember(
+  'registry-reader',
+  {
+    project: registryProject,
+    location: registryLocation,
+    repository: registryName,
+    role: 'roles/artifactregistry.reader',
+    member: runAgent.member,
+  },
+  { dependsOn: runAgent },
+);
 
 export const service = new gcp.cloudrunv2.Service('service', {
   project,
