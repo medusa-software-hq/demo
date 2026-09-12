@@ -91,7 +91,7 @@ const runAgent = new gcp.projects.ServiceIdentity(
  * whoever knows what needs to pull, rather than guessed at by a stack that should not
  * know what this app runs on.
  */
-new gcp.artifactregistry.RepositoryIamMember(
+const registryReader = new gcp.artifactregistry.RepositoryIamMember(
   'registry-reader',
   {
     project: imageProject,
@@ -103,45 +103,61 @@ new gcp.artifactregistry.RepositoryIamMember(
   { dependsOn: runAgent },
 );
 
-export const service = new gcp.cloudrunv2.Service('service', {
-  project,
-  location: region,
-  name: 'service',
+export const service = new gcp.cloudrunv2.Service(
+  'service',
+  {
+    project,
+    location: region,
+    name: 'service',
 
-  // Reached from the Internet, for now. The Worker in front of it is the only thing
-  // that should be talking to it, and making that true is a later change — until
-  // then this is deliberately open, and there is nothing behind it but counters
-  // that vanish on restart.
-  ingress: 'INGRESS_TRAFFIC_ALL',
+    // Reached from the Internet, for now. The Worker in front of it is the only thing
+    // that should be talking to it, and making that true is a later change — until
+    // then this is deliberately open, and there is nothing behind it but counters
+    // that vanish on restart.
+    ingress: 'INGRESS_TRAFFIC_ALL',
 
-  template: {
-    containers: [
-      {
-        image: pulumi.interpolate`${imageRegistry}/service:${imageTag()}`,
+    template: {
+      containers: [
+        {
+          image: pulumi.interpolate`${imageRegistry}/service:${imageTag()}`,
 
-        // The JVM wants more than the 512Mi default before it will start promptly.
-        resources: { limits: { cpu: '1', memory: '1Gi' } },
-      },
-    ],
+          // The JVM wants more than the 512Mi default before it will start promptly.
+          resources: { limits: { cpu: '1', memory: '1Gi' } },
+        },
+      ],
 
-    /**
-     * One instance, at most.
-     *
-     * The counters live in the process, so a second instance would hold a second
-     * set of them and which one a request reached would decide what it saw. That
-     * is not a scaling limit to be raised later — it is what an in-memory store
-     * means, and raising it without moving the store somewhere shared would produce
-     * a bug that looks like the service forgetting things at random.
-     *
-     * Down to zero when nothing is asking, which costs nothing and forgets
-     * everything. Both are fine for what this is.
-     */
-    scaling: { minInstanceCount: 0, maxInstanceCount: 1 },
+      /**
+       * One instance, at most.
+       *
+       * The counters live in the process, so a second instance would hold a second
+       * set of them and which one a request reached would decide what it saw. That
+       * is not a scaling limit to be raised later — it is what an in-memory store
+       * means, and raising it without moving the store somewhere shared would produce
+       * a bug that looks like the service forgetting things at random.
+       *
+       * Down to zero when nothing is asking, which costs nothing and forgets
+       * everything. Both are fine for what this is.
+       */
+      scaling: { minInstanceCount: 0, maxInstanceCount: 1 },
+    },
+
+    // Exploration phase: `destroy` should actually destroy.
+    deletionProtection: false,
   },
-
-  // Exploration phase: `destroy` should actually destroy.
-  deletionProtection: false,
-});
+  {
+    /**
+     * Last of the four, because the three above it are what let a first revision start:
+     * the API has to be on before a service can be created at all, and the agent has to
+     * be allowed to read the image before it is asked to pull one. Pulumi creates
+     * whatever nothing orders in parallel, and both halves of that went wrong in turn —
+     * one deployment tried to create the service nineteen seconds before the API was
+     * enabled, the next pulled the image six seconds before the grant to read it
+     * existed. Waiting on the grant orders all four, because the grant already waits
+     * for the agent and the agent for the API.
+     */
+    dependsOn: registryReader,
+  },
+);
 
 /**
  * Answerable by anyone, which is the point for now: there is no sign-in yet, and the
