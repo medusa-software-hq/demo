@@ -46,6 +46,48 @@ const minterFor = (serviceAccountKeyJson: string): GoogleIdTokenMinter => {
   return minter.value;
 };
 
+/**
+ * What a caller sends and this Worker does not pass on.
+ *
+ * Deliberately a rule rather than a list of things that have gone wrong. Everything
+ * above the last two is the set HTTP defines as hop-by-hop (RFC 9110 §7.6.1): they
+ * describe a conversation between a peer and its immediate neighbour, and a proxy
+ * that relays them is misreporting one connection's terms as another's. Applying the
+ * whole set is the only way to stop discovering it one header at a time.
+ *
+ * What remains open is a different question and not answerable here. `cookie`,
+ * `x-forwarded-for` and the rest are forwarded, and are harmless only because the API
+ * behind this reads none of them — no sessions, nothing keyed on an address. That is
+ * a fact about today's backend rather than a property of this Worker, and the day it
+ * stops being true, spoofing any of them through here becomes trivial.
+ */
+const NOT_FORWARDED = [
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+
+  // Addressed to this origin. Cloud Run routes by the name in the URL, and `fetch`
+  // derives that itself; leaving ours on would address the request to a service that
+  // does not exist.
+  'host',
+
+  /**
+   * Cloud Run accepts this in place of `authorization` for its own IAM check — that
+   * is the header's purpose, so an application can receive an end user's
+   * `authorization` untouched. A caller who sets it is taking part in a decision that
+   * is not theirs. Nobody gets in that way today, since the decision still ends at IAM
+   * and one account holds `run.invoker`; the worst they manage is to have their own
+   * request refused. It matters because of what changes next: when there is an end
+   * user to authenticate, this Worker's credential moves here.
+   */
+  'x-serverless-authorization',
+] as const;
+
 /** The request as the API should see it, carrying proof that this Worker sent it. */
 const callApi = async (request: Request, pathname: string, env: Env): Promise<Response> => {
   const idToken = await minterFor(env.GCP_SA_KEY).idTokenFor(env.API_TARGET);
@@ -54,30 +96,16 @@ const callApi = async (request: Request, pathname: string, env: Env): Promise<Re
 
   const headers = new Headers(request.headers);
 
-  /**
-   * Everything the caller sent is forwarded, except what decides who we are.
-   *
-   * Cloud Run accepts `x-serverless-authorization` in place of `authorization` for
-   * its own IAM check — that is what the header is for, so that an application can
-   * receive an end user's `authorization` untouched. Which means a caller who sets it
-   * is taking part in a decision that is not theirs. Nobody can get in that way today,
-   * since the decision still ends at IAM and only one account holds `run.invoker`; the
-   * worst they manage is to have their own request refused. But the arrangement below
-   * is the one that changes: when there is an end user to authenticate, this Worker's
-   * credential moves to that header, and a caller able to set it would be contending
-   * with the credential that says we are us. Dropped now, while it costs a line.
-   */
-  headers.delete('x-serverless-authorization');
+  for (const header of NOT_FORWARDED) {
+    headers.delete(header);
+  }
 
   // Whose name the upstream request travels under. `authorization` is free to use
   // while nothing authenticates the caller of this Worker; when something does, the
-  // browser's own credential wants this header and ours moves to the one above.
+  // browser's own credential wants this header and ours moves to
+  // `x-serverless-authorization` — which is stripped above, so a caller cannot get
+  // there first.
   headers.set('authorization', `Bearer ${idToken}`);
-
-  // The API is reached at a name this origin does not have, and Cloud Run routes by
-  // the one in the URL. Leaving ours behind would address the request to a service
-  // that does not exist.
-  headers.delete('host');
 
   return fetch(
     new Request(target, {
