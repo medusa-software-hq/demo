@@ -20,6 +20,18 @@ tasks:
       # `ci` installs strictly from the lockfile
       - npm ci
 
+  api:
+    desc: Generate the API client types from the OpenAPI contract
+    deps: [install]
+    sources:
+      - ../api/openapi/demo.yaml
+    generates:
+      - src/gen/sdk.gen.ts
+    cmds:
+      # Defined in `package.json`, not here, because `npm run build` has to generate too: the
+      # Pulumi program builds this package by calling npm directly and never goes through Task.
+      - npm run api
+
   checkFormatting:
     desc: Check package formatting
     deps: [install]
@@ -34,7 +46,7 @@ tasks:
 
   lint:
     desc: Lint the package
-    deps: [install]
+    deps: [install, api]
     cmds:
       # `--type-aware` is where the rules that need the type checker live, and they are the ones
       # that catch conditions which cannot be false.
@@ -42,13 +54,13 @@ tasks:
 
   fixLint:
     desc: Fix lint issues in the package
-    deps: [install]
+    deps: [install, api]
     cmds:
       - npx --no-install oxlint --type-aware --fix
 
   typecheck:
     desc: Type check the package
-    deps: [install]
+    deps: [install, api]
     cmds:
       # Two programs, checked separately: the app runs in a browser and the build
       # configuration runs in Node, and neither one's globals should be visible to the
@@ -70,6 +82,6 @@ tasks:
       - npx --no-install vite
 
   clean:
-    desc: Remove build artifacts
+    desc: Remove build and generated artifacts
     cmds:
-      - rm -rf dist
+      - rm -rf dist src/gen

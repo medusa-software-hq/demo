@@ -12,3 +12,6 @@ dist/
 
 # Task cache
 .task/
+
+# Generated from the OpenAPI contract by `npm run api`
+src/gen/
