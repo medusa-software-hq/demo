@@ -7,6 +7,17 @@ info:
 
 paths:
   /counters:
+    get:
+      operationId: listCounters
+      tags: [RawCounter]
+      summary: List every counter that exists, oldest first.
+      responses:
+        "200":
+          description: The counters, which may be none.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawCounterListReply" }
+
     post:
       operationId: createCounter
       tags: [RawCounter]
@@ -96,6 +107,29 @@ components:
         counterId:
           type: string
           description: The new counter's id.
+
+    RawCounter:
+      type: object
+      required: [counterId, count]
+      properties:
+        counterId:
+          type: string
+          description: The counter's id.
+        count:
+          type: integer
+          format: int64
+          description: The counter's value.
+
+    RawCounterListReply:
+      type: object
+      required: [counters]
+      properties:
+        counters:
+          type: array
+          description: >-
+            Every counter, oldest first. Ordered because a page rendering these should not
+            reshuffle them between one reading and the next.
+          items: { $ref: "#/components/schemas/RawCounter" }
 
     RawCountReply:
       type: object

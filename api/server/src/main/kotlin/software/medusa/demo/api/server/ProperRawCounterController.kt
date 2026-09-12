@@ -5,7 +5,9 @@ import io.micronaut.http.annotation.Controller
 import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.api.raw.controllers.RawCounterController
 import software.medusa.demo.api.raw.models.RawCountReply
+import software.medusa.demo.api.raw.models.RawCounter
 import software.medusa.demo.api.raw.models.RawCounterCreatedReply
+import software.medusa.demo.api.raw.models.RawCounterListReply
 import software.medusa.demo.core.CounterId
 
 /** Mediates between the [apiHandler] and the [RawCounterController] HTTP-based interface. */
@@ -17,6 +19,16 @@ class ProperRawCounterController(
     private fun replyWithCount(count: Long): HttpResponse<RawCountReply> =
         HttpResponse.ok(RawCountReply(count = count))
   }
+
+  override suspend fun listCounters(): HttpResponse<RawCounterListReply> =
+      HttpResponse.ok(
+          RawCounterListReply(
+              counters =
+                  apiHandler.handleListCounters().map { counter ->
+                    RawCounter(counterId = counter.id.value, count = counter.count)
+                  },
+          ),
+      )
 
   override suspend fun createCounter(): HttpResponse<RawCounterCreatedReply> =
       HttpResponse.ok(
