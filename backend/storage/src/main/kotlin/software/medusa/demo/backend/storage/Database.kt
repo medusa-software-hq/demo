@@ -1,4 +1,4 @@
-package software.medusa.demo.backend.service
+package software.medusa.demo.backend.storage
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource

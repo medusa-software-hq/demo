@@ -3,6 +3,8 @@ package software.medusa.demo.backend.service
 import io.micronaut.context.ApplicationContext
 import io.micronaut.runtime.server.EmbeddedServer
 import software.medusa.demo.api.server.ProperRawCounterController
+import software.medusa.demo.backend.storage.Database
+import software.medusa.demo.backend.storage.PostgresCounterStore
 
 /** Service starter. */
 data object ServiceStarter {
