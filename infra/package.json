@@ -6,6 +6,7 @@
   "dependencies": {
     "@pulumi/cloudflare": "^6.0.0",
     "@pulumi/gcp": "^9.36.1",
+    "@pulumi/neon": "file:sdks/neon",
     "@pulumi/pulumi": "^3.150.0",
     "esbuild": "^0.25.0"
   },
@@ -16,5 +17,8 @@
     "oxlint": "^1.80.0",
     "oxlint-tsgolint": "^7.0.2001",
     "typescript": "^5.9.0"
+  },
+  "allowScripts": {
+    "file:sdks/neon": true
   }
 }
