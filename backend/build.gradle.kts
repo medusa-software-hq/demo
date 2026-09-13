@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
   testImplementation(project(":backend:local-stack"))
+  testImplementation(project(":backend:storage"))
   testImplementation(project(":api:client"))
   testImplementation(libs.sqldelight.jdbc.driver)
   testImplementation(libs.kotlinx.coroutines.core)

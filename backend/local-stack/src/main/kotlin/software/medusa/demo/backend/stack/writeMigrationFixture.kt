@@ -2,7 +2,7 @@ package software.medusa.demo.backend.stack
 
 import java.io.File
 import org.flywaydb.core.Flyway
-import software.medusa.demo.backend.service.Database
+import software.medusa.demo.backend.storage.Database
 
 /**
  * Writes the dump the migration test starts from: a database migrated to one version, holding the

@@ -6,6 +6,9 @@ plugins {
 
 dependencies {
   api(project(":backend:service"))
+  // Migrates to a chosen version when writing the migration fixture; the Service does not expose
+  // it.
+  implementation(project(":backend:storage"))
 
   // The stack starts its own Postgres, so running it locally and testing against it both need
   // Docker.

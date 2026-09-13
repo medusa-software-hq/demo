@@ -5,10 +5,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 import software.medusa.demo.api.client.ApiClient
-import software.medusa.demo.backend.service.Database
-import software.medusa.demo.backend.service.db.DemoDatabase
 import software.medusa.demo.backend.stack.BackendStackStarter
 import software.medusa.demo.backend.stack.LocalDatabase
+import software.medusa.demo.backend.storage.Database
+import software.medusa.demo.backend.storage.db.DemoDatabase
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
