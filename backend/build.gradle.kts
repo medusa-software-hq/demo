@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
   testImplementation(project(":backend:local-stack"))
+  testImplementation(testFixtures(project(":backend:local-stack")))
   testImplementation(project(":api:client"))
   testImplementation(libs.kotlinx.coroutines.core)
   testImplementation(libs.kotlin.test)

@@ -5,27 +5,14 @@ import software.medusa.demo.backend.service.ServiceStarter
 /** Backend stack starter. */
 data object BackendStackStarter {
   /**
-   * Starts the backend stack on a database of its own, which goes when the stack does.
+   * Starts the backend stack on a fresh database of [cluster].
    *
-   * A fresh one each time, so nothing one stack leaves behind can prop another one up.
+   * A database of its own each time, so nothing one stack leaves behind can prop another one up.
    */
-  fun start(): BackendStackHandle {
-    val database = LocalDatabase.start()
-
-    val stackHandle = runCatching { start(database) }.onFailure { database.close() }.getOrThrow()
-
-    return object : BackendStackHandle {
-      override val serviceHandle = stackHandle.serviceHandle
-
-      override fun close() {
-        stackHandle.close()
-        database.close()
-      }
-    }
-  }
+  fun start(cluster: LocalDatabaseCluster): BackendStackHandle = start(cluster.createDatabase())
 
   /**
-   * Starts the backend stack against [database], which it uses and leaves open.
+   * Starts the backend stack against [database], which it uses and leaves alone.
    *
    * For a database that has to outlive the stack: stopping one stack and starting another on the
    * same database is what a restart of the real service looks like from the database's side.

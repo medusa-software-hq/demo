@@ -25,7 +25,7 @@ class BackendStackSmokeTest {
 
   @Test
   fun `a counter can be made and counted on the assembled stack`() {
-    BackendStackStarter.start().use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
       val baseUrl = "http://localhost:${stackHandle.serviceHandle.port}"
       val httpClient = HttpClient.newHttpClient()
 

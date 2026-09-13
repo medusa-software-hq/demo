@@ -27,7 +27,7 @@ tasks:
       - ./gradlew ktfmtFormat
 
   run:
-    desc: Run the backend locally, on a port it chooses and prints, against a throwaway Postgres (needs Docker)
+    desc: Run the backend locally, on a port it chooses and prints, against an embedded Postgres
     interactive: true
     cmds:
       - ./gradlew :backend:local-stack:run --console=plain

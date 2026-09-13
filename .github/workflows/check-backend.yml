@@ -28,9 +28,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6.3.0
 
       # `build` is compile, generate, format check, detekt and test in one — including
-      # the tests that start the service and call it over HTTP. Each of those starts its
-      # own Postgres through Testcontainers, which needs nothing from this job but the
-      # runner's Docker.
+      # the tests that start the service and call it over HTTP. Those run against an
+      # embedded Postgres started from Maven-provided binaries, so this job needs no Docker
+      # for them.
       - name: Run `gradle build`
         run: ./gradlew build
 
