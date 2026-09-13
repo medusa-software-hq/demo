@@ -12,19 +12,19 @@ import software.medusa.demo.core.CounterId
 /**
  * Migrating a database that already holds data, judged by what the storage layer reads back.
  *
- * It starts from a dump of the oldest database still supported rather than from an empty one: a
- * migration that works on an empty database can still fail on rows that exist, and once old
- * migrations are deleted, an empty database is no longer where any real one starts. What it checks
- * is what the app would see — the store's answers — rather than what the schema looks like.
+ * It starts from a dump of a database at version 1 rather than from an empty one: a migration that
+ * works on an empty database can still fail on rows that exist, and once old migrations are
+ * deleted, an empty database is no longer where any real one starts. What it checks is what the app
+ * would see — the store's answers — rather than what the schema looks like.
  */
 class MigrationTest {
-  private val oldestSupported: String =
-      checkNotNull(javaClass.getResource("/database/oldest-supported.sql")) {
+  private val version1: String =
+      checkNotNull(javaClass.getResource("/database/V1.sql")) {
             "The migration fixture is missing; see :backend:dump-database:writeMigrationFixture"
           }
           .readText()
 
-  /** The rows in oldest-supported.seed.sql, in the order they were inserted. */
+  /** The rows seed.sql held when version 1 was the newest, in the order they were inserted. */
   private val seeded =
       listOf(
           Counter(id = CounterId("00000000-0000-4000-8000-000000000000"), count = 0),
@@ -34,12 +34,12 @@ class MigrationTest {
       )
 
   /**
-   * Restores the oldest supported database, migrates it the way `migrate-database` does, and hands
+   * Restores the database at version 1, migrates it the way `migrate-database` does, and hands
    * [block] a store over the result.
    */
   private fun withMigratedStore(block: suspend (PostgresCounterStore) -> Unit) {
     ContainerDatabase.start().use { database ->
-      database.execute(oldestSupported)
+      database.execute(version1)
 
       migrateDatabase(database.url)
 
@@ -50,7 +50,7 @@ class MigrationTest {
   }
 
   @Test
-  fun `every counter the oldest supported database held reads back after migrating`() =
+  fun `every counter a database at version 1 held reads back after migrating`() =
       withMigratedStore { store ->
         assertEquals(expected = seeded, actual = store.listAll())
       }

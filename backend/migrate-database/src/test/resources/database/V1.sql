@@ -1,9 +1,9 @@
--- The oldest database this app still has to migrate from: version 1, holding the
--- rows in oldest-supported.seed.sql. Generated, not written by hand:
+-- A database at version 1, holding the rows seed.sql held while 1 was the newest
+-- version. Generated, not written by hand:
 --
---     ./gradlew --no-daemon :backend:dump-database:writeMigrationFixture -PtargetVersion=1
+--     ./gradlew --no-daemon :backend:dump-database:writeMigrationFixture
 --
--- Before deleting a migration, regenerate this at the version that will then be oldest.
+-- Kept once a newer version exists: it is where databases still at 1 migrate from.
 
 --
 -- PostgreSQL database dump
@@ -90,7 +90,7 @@ not-a-uuid-ü-ñ-漢字	42	4
 --
 
 COPY public.flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success) FROM stdin;
-1	1	create counters	SQL	V1__create_counters.sql	1952171312	test	2026-09-13 19:49:16.54806	7	t
+1	1	create counters	SQL	V1__create_counters.sql	1952171312	test	2026-09-13 22:52:26.892724	5	t
 \.
 
 
