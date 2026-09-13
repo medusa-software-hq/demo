@@ -8,6 +8,7 @@ import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.api.client.ApiClient
 import software.medusa.demo.backend.stack.BackendStackHandle
 import software.medusa.demo.backend.stack.BackendStackStarter
+import software.medusa.demo.backend.stack.LocalDatabase
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
@@ -201,12 +202,37 @@ class CounterRoutesTest {
               assertApiCallSucceeds { stackHandle.apiClient().getCount(counterId = counterId) },
       )
 
-      // And it does not merely deny knowing that one: it has nothing at all. Which is what a
-      // page reaching a restarted service should be told, rather than a list of the dead.
+      // And it does not merely deny knowing that one: it has nothing at all. Each stack gets a
+      // database of its own, so no test here can pass on what another one left behind.
       assertEquals(
           expected = emptyList(),
           actual = assertApiCallSucceeds { stackHandle.apiClient().listCounters() },
       )
+    }
+  }
+
+  @Test
+  fun `counters outlive the service that made them`() = runBlocking {
+    LocalDatabase.start().use { database ->
+      val counterId =
+          BackendStackStarter.start(database).use { stackHandle ->
+            val apiClient = stackHandle.apiClient()
+            val createdCounterId = assertApiCallSucceeds { apiClient.createCounter() }
+
+            assertApiCallSucceeds { apiClient.incrementCount(counterId = createdCounterId) }
+
+            createdCounterId
+          }
+
+      // A second service on the same database is what a restart, a new revision and a cold start
+      // after scaling to zero all look like from the database's side. It also migrates a database
+      // that is already up to date, which has to do nothing.
+      BackendStackStarter.start(database).use { stackHandle ->
+        assertEquals(
+            expected = listOf(Counter(id = counterId, count = 1)),
+            actual = assertApiCallSucceeds { stackHandle.apiClient().listCounters() },
+        )
+      }
     }
   }
 }

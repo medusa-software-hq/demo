@@ -15,6 +15,13 @@ dependencies {
   api(project(":api:server"))
 
   implementation("io.micronaut:micronaut-http-server-netty")
+  implementation(libs.kotlinx.coroutines.core)
+
+  // `api`: `Database.connect` hands its caller the pool, which the caller then owns and closes.
+  api(libs.hikaricp)
+  implementation(libs.flyway.core)
+  runtimeOnly(libs.flyway.database.postgresql)
+  runtimeOnly(libs.postgresql)
   implementation("io.micronaut.kotlin:micronaut-kotlin-runtime")
 
   testImplementation(libs.kotlin.test)

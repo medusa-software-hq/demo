@@ -6,13 +6,23 @@ import software.medusa.demo.api.server.ProperRawCounterController
 
 /** Service starter. */
 data object ServiceStarter {
-  /** Starts the Service on [port]. */
-  fun start(port: Int): ServiceHandle {
-    val counterStore = InMemoryCounterStore()
+  /**
+   * Starts the Service on [port], keeping its counters in the database at [databaseUrl].
+   *
+   * The schema is brought up to date before the server listens, so no request meets a table that is
+   * not there yet. Flyway holds a lock in the database while it migrates, so two instances starting
+   * at once do not both try.
+   */
+  fun start(port: Int, databaseUrl: String): ServiceHandle {
+    val dataSource = Database.connect(databaseUrl)
+
+    // A start that fails here must not leave the pool open behind it.
+    runCatching { Database.migrate(dataSource) }.onFailure { dataSource.close() }.getOrThrow()
 
     val counterController =
         ProperRawCounterController(
-            apiHandler = ProperApiHandler(counterStore = counterStore),
+            apiHandler =
+                ProperApiHandler(counterStore = PostgresCounterStore(dataSource = dataSource)),
         )
 
     val applicationContext =
@@ -35,6 +45,7 @@ data object ServiceStarter {
 
         // Built here, so closed here.
         applicationContext.close()
+        dataSource.close()
       }
     }
   }

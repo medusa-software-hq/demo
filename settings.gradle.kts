@@ -14,6 +14,8 @@ include(
     ":backend",
     ":backend:service",
     ":backend:local-stack",
+    // Brings a database's schema up to date, on purpose rather than as a side effect of starting.
+    ":backend:migrate-database",
     // How the Service is started on Cloud Run.
     ":backend:service:cloud-run",
 )

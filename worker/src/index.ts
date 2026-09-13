@@ -5,9 +5,9 @@ import { routeFor } from './routing.ts';
  * What this origin answers with: the app's files, and the app's API.
  *
  * Nobody is asked who they are. The page is public and so, through here, is the API
- * behind it — there is no sign-in yet, and nothing behind the API but counters that
- * vanish when the process does. What this Worker holds is a credential for calling
- * *upstream*, which is a different thing from authenticating whoever called *it*.
+ * behind it — there is no sign-in yet, so anyone who can load the page can change what
+ * is stored. What this Worker holds is a credential for calling *upstream*, which is a
+ * different thing from authenticating whoever called *it*.
  */
 
 interface Env {
