@@ -64,9 +64,8 @@ function describeApiError(errorKind: DemoApiErrorKind): string {
 /**
  * The counters, which live in the service rather than in this tab.
  *
- * So a reload shows what is there, and a second tab shows the same thing. What it does not show is
- * anything that outlives the service: the store is in memory and the instance goes away when
- * nobody is asking, which is why an empty list is the ordinary state and not a sign of trouble.
+ * So a reload shows what is there, a second tab shows the same thing, and neither this page closing
+ * nor the service stopping loses any of it: the service keeps them in Postgres.
  */
 export default function App() {
   const apiClient: DemoApiClient = useMemo(() => createDemoApiClient(apiUrl), []);
@@ -113,8 +112,9 @@ export default function App() {
   /**
    * A counter the service does not have is one this page should stop showing.
    *
-   * Reached when somebody clicks on a row that was drawn before the instance went away. Reloading
-   * rather than only dropping the row, because if one counter is gone the rest probably are too.
+   * Reached when a row was drawn before somebody deleted its counter somewhere else — another tab,
+   * another person. Reloading rather than only dropping the row, because whatever removed that one
+   * may have changed others too.
    */
   const forgetMissing = useCallback(async () => {
     await reload();

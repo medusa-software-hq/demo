@@ -184,14 +184,14 @@ export const service = new gcp.cloudrunv2.Service(
       /**
        * One instance, at most.
        *
-       * The counters live in the process, so a second instance would hold a second
-       * set of them and which one a request reached would decide what it saw. That
-       * is not a scaling limit to be raised later — it is what an in-memory store
-       * means, and raising it without moving the store somewhere shared would produce
-       * a bug that looks like the service forgetting things at random.
+       * Not for correctness: the counters are in Postgres, so a second instance would
+       * see exactly the same ones. The cap is what bounds this service's bill — traffic
+       * can raise the number of requests, but not the number of instances — and it
+       * stays until there is a reason to spend more.
        *
-       * Down to zero when nothing is asking, which costs nothing and forgets
-       * everything. Both are fine for what this is.
+       * Down to zero when nothing is asking, which costs nothing and loses nothing. The
+       * next request waits for the JVM to start, and for Neon to wake if it has
+       * suspended too.
        */
       scaling: { minInstanceCount: 0, maxInstanceCount: 1 },
     },
