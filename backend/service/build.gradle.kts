@@ -39,31 +39,21 @@ micronaut {
 }
 
 /**
- * The migrations are the only description of the schema.
+ * Two descriptions of the schema, on purpose.
  *
- * SQLDelight derives the current tables from them to type-check every query, and writes each one
- * back out as plain SQL for Flyway to apply. So the thing queries are checked against and the thing
- * the database is built from cannot drift apart: there is only one of them.
+ * The `CREATE TABLE` statements in the `.sq` files are the schema as it is now, and what every
+ * query is checked against at build time. The Flyway migrations in `resources/db/migration` are how
+ * an existing database gets there, and old ones can be deleted once nothing still needs them. That
+ * the two agree is a claim a test has to make against a real database, not something either one can
+ * be derived from.
  */
-val flywayMigrations = layout.buildDirectory.dir("generated/flyway")
-
 sqldelight {
   databases {
     create("DemoDatabase") {
       packageName.set("software.medusa.demo.backend.service.db")
       dialect(libs.sqldelight.postgresql.dialect)
-      deriveSchemaFromMigrations.set(true)
-      migrationOutputDirectory.set(flywayMigrations.map { it.dir("db/migration") })
-      migrationOutputFileFormat.set(".sql")
     }
   }
-}
-
-// Where Flyway looks by default, `classpath:db/migration`. Registered with the task that produces
-// it, so everything that reads resources — packaging, the classpath inspection, the IDE — knows to
-// generate first, rather than only whichever task was told by hand.
-sourceSets {
-  main { resources.srcDir(files(flywayMigrations).builtBy("generateMainDemoDatabaseMigrations")) }
 }
 
 base { archivesName = "backend-service" }

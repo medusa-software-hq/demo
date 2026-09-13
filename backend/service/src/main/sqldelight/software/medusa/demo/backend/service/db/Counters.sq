@@ -1,3 +1,11 @@
+-- The table as it is now. Flyway's migrations are what build it in a real database; this is what the
+-- queries below are checked against, and the two have to agree.
+CREATE TABLE counters (
+    id      TEXT   PRIMARY KEY,
+    count   BIGINT NOT NULL,
+    ordinal BIGINT GENERATED ALWAYS AS IDENTITY
+);
+
 listAll:
 SELECT id, count FROM counters ORDER BY ordinal;
 
