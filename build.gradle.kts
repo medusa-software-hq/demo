@@ -4,6 +4,7 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 plugins {
   alias(libs.plugins.kotlin.jvm) apply false
   alias(libs.plugins.shadow) apply false
+  alias(libs.plugins.sqldelight) apply false
   alias(libs.plugins.versionCatalogUpdate)
   alias(libs.plugins.ktfmt) apply false
   alias(libs.plugins.detekt) apply false

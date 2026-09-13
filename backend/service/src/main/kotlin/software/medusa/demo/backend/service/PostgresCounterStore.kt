@@ -1,84 +1,55 @@
 package software.medusa.demo.backend.service
 
-import java.sql.Connection
+import app.cash.sqldelight.driver.jdbc.asJdbcDriver
 import java.util.UUID
 import javax.sql.DataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.demo.backend.Constants
+import software.medusa.demo.backend.service.db.DemoDatabase
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 /**
  * [CounterStore] kept in Postgres, in the `counters` table the migrations create.
  *
- * Plain JDBC, each statement written where it is used. Every call borrows a connection for its one
- * statement and hands it straight back, on the IO dispatcher.
+ * The queries are in `Counters.sq`, checked at build time against the schema the migrations
+ * describe, so a column that does not exist or a type that does not fit fails the build rather than
+ * a request. Each call runs on the IO dispatcher, since it waits on the network.
  */
 class PostgresCounterStore(
-    private val dataSource: DataSource,
+    dataSource: DataSource,
 ) : CounterStore {
-  override suspend fun create(): CounterId = withConnection { connection ->
+  private val queries = DemoDatabase(dataSource.asJdbcDriver()).countersQueries
+
+  override suspend fun create(): CounterId = io {
     val counterId = CounterId(UUID.randomUUID().toString())
 
-    connection.prepareStatement("INSERT INTO counters (id, count) VALUES (?, ?)").use { statement ->
-      statement.setString(1, counterId.value)
-      statement.setLong(2, Constants.initialCounterValue)
-      statement.executeUpdate()
-    }
+    queries.create(id = counterId.value, count = Constants.initialCounterValue)
 
     counterId
   }
 
-  override suspend fun listAll(): List<Counter> = withConnection { connection ->
-    connection.prepareStatement("SELECT id, count FROM counters ORDER BY ordinal").use { statement
-      ->
-      statement.executeQuery().use { rows ->
-        buildList {
-          while (rows.next()) {
-            add(Counter(id = CounterId(rows.getString("id")), count = rows.getLong("count")))
-          }
-        }
-      }
-    }
+  override suspend fun listAll(): List<Counter> = io {
+    queries.listAll { id, count -> Counter(id = CounterId(id), count = count) }.executeAsList()
   }
 
-  override suspend fun delete(counterId: CounterId): Boolean = withConnection { connection ->
-    connection.prepareStatement("DELETE FROM counters WHERE id = ?").use { statement ->
-      statement.setString(1, counterId.value)
-      statement.executeUpdate() > 0
-    }
+  override suspend fun delete(counterId: CounterId): Boolean = io {
+    queries.delete(id = counterId.value).value > 0
   }
 
-  override suspend fun getCurrent(counterId: CounterId): Long? = withConnection { connection ->
-    connection.prepareStatement("SELECT count FROM counters WHERE id = ?").use { statement ->
-      statement.setString(1, counterId.value)
-      statement.executeQuery().use { rows -> if (rows.next()) rows.getLong("count") else null }
-    }
+  override suspend fun getCurrent(counterId: CounterId): Long? = io {
+    queries.getCurrent(id = counterId.value).executeAsOneOrNull()
   }
 
   override suspend fun increment(counterId: CounterId): Long? = adjust(counterId, by = 1)
 
   override suspend fun decrement(counterId: CounterId): Long? = adjust(counterId, by = -1)
 
-  /**
-   * Moves the counter [counterId] identifies by [by], and answers where it landed.
-   *
-   * One statement, so it is atomic: reading the value and writing it back plus one would let two
-   * requests read the same number and both write the same result. `RETURNING` hands back the new
-   * value without a second query, and matching no row means there is no such counter — nothing is
-   * created.
-   */
-  private suspend fun adjust(counterId: CounterId, by: Long): Long? = withConnection { connection ->
-    connection
-        .prepareStatement("UPDATE counters SET count = count + ? WHERE id = ? RETURNING count")
-        .use { statement ->
-          statement.setLong(1, by)
-          statement.setString(2, counterId.value)
-          statement.executeQuery().use { rows -> if (rows.next()) rows.getLong("count") else null }
-        }
+  private suspend fun adjust(counterId: CounterId, by: Long): Long? = io {
+    queries.adjust(by = by, id = counterId.value).executeAsOneOrNull()
   }
 
-  private suspend fun <ResultT> withConnection(block: (Connection) -> ResultT): ResultT =
-      withContext(Dispatchers.IO) { dataSource.connection.use(block) }
+  private suspend fun <ResultT> io(block: () -> ResultT): ResultT =
+      withContext(Dispatchers.IO) { block() }
 }
