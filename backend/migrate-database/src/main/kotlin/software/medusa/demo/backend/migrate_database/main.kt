@@ -1,6 +1,6 @@
 package software.medusa.demo.backend.migrate_database
 
-import software.medusa.demo.backend.service.Database
+import software.medusa.demo.backend.storage.Database
 
 /** Which database to migrate. */
 private const val databaseUrlVariableName = "DATABASE_URL"

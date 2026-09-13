@@ -2,6 +2,7 @@ package software.medusa.demo.backend.service
 
 import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.api.server.ApiHandler
+import software.medusa.demo.backend.storage.CounterStore
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 

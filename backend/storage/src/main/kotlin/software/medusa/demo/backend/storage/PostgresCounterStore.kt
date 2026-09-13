@@ -1,4 +1,4 @@
-package software.medusa.demo.backend.service
+package software.medusa.demo.backend.storage
 
 import app.cash.sqldelight.driver.jdbc.asJdbcDriver
 import java.util.UUID
@@ -6,7 +6,7 @@ import javax.sql.DataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.demo.backend.Constants
-import software.medusa.demo.backend.service.db.DemoDatabase
+import software.medusa.demo.backend.storage.db.DemoDatabase
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 

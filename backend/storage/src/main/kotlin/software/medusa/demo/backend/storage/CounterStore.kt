@@ -1,4 +1,4 @@
-package software.medusa.demo.backend.service
+package software.medusa.demo.backend.storage
 
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId

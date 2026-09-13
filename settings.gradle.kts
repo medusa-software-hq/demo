@@ -12,6 +12,8 @@ include(
     ":api:client",
     ":api:server",
     ":backend",
+    // Where the data lives: the store, the schema, the migrations. Shared by whatever reads or writes it.
+    ":backend:storage",
     ":backend:service",
     ":backend:local-stack",
     // Brings a database's schema up to date, on purpose rather than as a side effect of starting.
