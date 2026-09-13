@@ -4,5 +4,16 @@ runtime:
   options:
     packagemanager: npm
 description: >-
-  The demo application's own infrastructure. One stack per environment, each deploying
-  into the project the platform stack created for it.
+  The demo application's own infrastructure. One stack per environment, each deploying into the project the platform stack created for it.
+# Bridged from a Terraform provider, because Neon has no Pulumi one. `pulumi install`
+# regenerates the SDK under `sdks/`, so nothing generated is committed — the same
+# arrangement this repository already uses for the frontend's API client.
+#
+# Both versions pinned: the first is the bridge, the second the provider it wraps.
+packages:
+  neon:
+    source: terraform-provider
+    version: 1.4.0
+    parameters:
+      - kislerdm/neon
+      - 0.18.0

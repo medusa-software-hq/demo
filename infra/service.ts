@@ -1,5 +1,6 @@
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
+import { databaseUrlSecret } from './database.ts';
 import { execFileSync } from 'node:child_process';
 
 /**
@@ -106,6 +107,29 @@ const registryReader = new gcp.artifactregistry.RepositoryIamMember(
   { dependsOn: runAgent },
 );
 
+/**
+ * Who the container is, once it is running.
+ *
+ * Its own account rather than the Compute Engine default one Cloud Run falls back to.
+ * That account is broadly privileged on the project by inheritance, and it belongs to a
+ * service this organization denies — so relying on it means a workload identified by
+ * something nobody here decided to have. This one holds exactly what it is granted,
+ * which today is the reading of one secret.
+ */
+const runtime = new gcp.serviceaccount.Account('runtime', {
+  project,
+  accountId: 'service-runtime',
+  displayName: 'What the API runs as',
+});
+
+/** The one thing it may read. */
+const databaseUrlAccessor = new gcp.secretmanager.SecretIamMember('runtime-database-url', {
+  project,
+  secretId: databaseUrlSecret.secretId,
+  role: 'roles/secretmanager.secretAccessor',
+  member: runtime.member,
+});
+
 export const service = new gcp.cloudrunv2.Service(
   'service',
   {
@@ -131,12 +155,29 @@ export const service = new gcp.cloudrunv2.Service(
        */
       annotations: { 'medusa.software/redeploy': REDEPLOY },
 
+      serviceAccount: runtime.email,
+
       containers: [
         {
           image: pulumi.interpolate`${imageRegistry}/service:${imageTag()}`,
 
           // The JVM wants more than the 512Mi default before it will start promptly.
           resources: { limits: { cpu: '1', memory: '1Gi' } },
+
+          /**
+           * Where the database is, read from the secret at start rather than baked in.
+           *
+           * `latest` rather than a pinned version, so rotating the connection string is
+           * a new version plus a new revision, and never an edit here.
+           */
+          envs: [
+            {
+              name: 'DATABASE_URL',
+              valueSource: {
+                secretKeyRef: { secret: databaseUrlSecret.secretId, version: 'latest' },
+              },
+            },
+          ],
         },
       ],
 
@@ -169,7 +210,7 @@ export const service = new gcp.cloudrunv2.Service(
      * existed. Waiting on the grant orders all four, because the grant already waits
      * for the agent and the agent for the API.
      */
-    dependsOn: registryReader,
+    dependsOn: [registryReader, databaseUrlAccessor],
   },
 );
 
