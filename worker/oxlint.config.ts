@@ -5,6 +5,15 @@ export default {
 
   ignorePatterns: ['**/*.{mjs,cjs,js,d.ts,d.mts}'],
 
+  overrides: [
+    {
+      // `node:test` hands back a promise from `describe` and `it` that the runner itself waits
+      // on. Nothing is left floating, and awaiting them at the top level would change nothing.
+      files: ['**/*.test.ts'],
+      rules: { 'typescript/no-floating-promises': 'off' },
+    },
+  ],
+
   rules: {
     'array-callback-return': 'error',
     'no-duplicate-imports': 'error',

@@ -46,6 +46,13 @@ tasks:
     cmds:
       - npx --no-install oxlint --type-aware --fix
 
+  test:
+    desc: Run the package's tests
+    deps: [install]
+    cmds:
+      # Defined in `package.json`, so this and CI run the same command.
+      - npm test
+
   typecheck:
     desc: Type check the package
     deps: [install]

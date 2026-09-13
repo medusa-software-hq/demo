@@ -36,6 +36,17 @@ export default defineConfig({
             target: backendUrl,
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api/, ''),
+
+            /**
+             * Who is calling, said the way the Worker says it after checking a sign-in.
+             *
+             * Nobody signs in to a dev server, and the service refuses a request that names
+             * nobody — so the stand-in for the Worker names somebody, and always the same one.
+             */
+            headers: {
+              'x-medusa-user-subject': 'local-developer',
+              'x-medusa-user-email': 'developer@localhost',
+            },
           },
         }
       : undefined,

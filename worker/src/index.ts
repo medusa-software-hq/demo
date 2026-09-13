@@ -1,13 +1,22 @@
+import { createRemoteJWKSet } from 'jose';
 import { GoogleIdTokenMinter, type ServiceAccountKey } from './googleIdToken.ts';
 import { routeFor } from './routing.ts';
+import { SignInTokenVerifier, type SignedInUser } from './signInToken.ts';
 
 /**
- * What this origin answers with: the app's files, and the app's API.
+ * What this origin answers with: the app's files, its API, and its webhooks.
  *
- * Nobody is asked who they are. The page is public and so, through here, is the API
- * behind it — there is no sign-in yet, so anyone who can load the page can change what
- * is stored. What this Worker holds is a credential for calling *upstream*, which is a
- * different thing from authenticating whoever called *it*.
+ * Signing in happens in front of this Worker rather than in it: the platform puts a login
+ * before every app hostname, and a request that got past it carries a token saying who
+ * signed in. This Worker checks that token and hands the API what it says, in headers the
+ * API takes at its word — which it can, because nothing but this Worker can call the API.
+ *
+ * Webhooks are the exception, on purpose. Their senders cannot sign in, the login lets
+ * them through unasked, and so they reach the API with nobody named. What vouches for a
+ * webhook is the signature its sender puts on it, and checking that is the API's job.
+ *
+ * What this Worker holds besides is a credential for calling *upstream*. That says the
+ * request came through here, which is a different thing from saying who sent it.
  */
 
 interface Env {
@@ -17,6 +26,12 @@ interface Env {
   readonly API_TARGET: string;
   /** A service account key, in the JSON Google issues it as. */
   readonly GCP_SA_KEY: string;
+  /** Who signs the tokens saying who signed in. */
+  readonly AUTH_ISSUER: string;
+  /** Where the keys those tokens are signed with are published. */
+  readonly AUTH_KEYS_URL: string;
+  /** Which of that issuer's tokens are meant for this app, in this environment. */
+  readonly AUTH_AUDIENCE: string;
 }
 
 /**
@@ -46,6 +61,48 @@ const minterFor = (serviceAccountKeyJson: string): GoogleIdTokenMinter => {
   return minter.value;
 };
 
+/** Kept the same way, and holding the same kind of thing: the issuer's keys, once fetched. */
+let verifier: { readonly builtFrom: string; readonly value: SignInTokenVerifier } | undefined;
+
+const verifierFor = (env: Env): SignInTokenVerifier => {
+  const builtFrom = `${env.AUTH_ISSUER} ${env.AUTH_KEYS_URL} ${env.AUTH_AUDIENCE}`;
+
+  if (verifier?.builtFrom !== builtFrom) {
+    verifier = {
+      builtFrom,
+      value: new SignInTokenVerifier(
+        env.AUTH_ISSUER,
+        env.AUTH_AUDIENCE,
+        createRemoteJWKSet(new URL(env.AUTH_KEYS_URL)),
+      ),
+    };
+  }
+
+  return verifier.value;
+};
+
+/**
+ * Where the login in front of this Worker puts its token.
+ *
+ * The one place this file knows which login that is. Cloudflare Access sends the token in
+ * a cookie too, and recommends this header over it: the cookie is not guaranteed to arrive.
+ */
+const SIGN_IN_TOKEN_HEADER = 'cf-access-jwt-assertion';
+
+/**
+ * The headers the API reads as who is calling, all under one prefix.
+ *
+ * Taken off every request, whatever its route, and set again only from a token checked
+ * here. A prefix rather than a list, so a header added under it later is covered without
+ * anyone remembering to add it: a caller able to set one would be choosing who they are.
+ */
+const IDENTITY_HEADER_PREFIX = 'x-medusa-user-';
+
+const IDENTITY_HEADERS = {
+  subject: `${IDENTITY_HEADER_PREFIX}subject`,
+  email: `${IDENTITY_HEADER_PREFIX}email`,
+} as const;
+
 /**
  * Credentials Google Cloud will authenticate a request with, and which are therefore
  * ours to send and never a caller's.
@@ -57,12 +114,10 @@ const minterFor = (serviceAccountKeyJson: string): GoogleIdTokenMinter => {
  * the request, and `authorization` is then passed through "without processing the
  * content".
  *
- * So these are not headers, they are entrances. Nothing gets in through them today —
- * the decision still ends at IAM, one account holds `run.invoker`, and no IAP stands
- * in front of anything here. What makes them worth naming is that both are the header
- * this Worker's own credential moves to the moment there is an end user to
- * authenticate, and a caller who can set one is arguing with the credential that says
- * we are us.
+ * So these are not headers, they are entrances. This Worker's own credential travels
+ * in the first, which is why a caller must not be able to set it: one who could would
+ * be arguing with the credential that says we are us. No IAP stands in front of
+ * anything here, but one that did would honour the second in the same way.
  *
  * https://cloud.google.com/iap/docs/authentication-howto
  */
@@ -91,15 +146,21 @@ const HOP_BY_HOP = [
 /**
  * Everything this Worker takes off a request before passing it on.
  *
- * What stays is a different question, and not answerable here. `cookie`,
- * `x-forwarded-for` and the rest still travel, and are harmless only because the API
- * behind this reads none of them — no sessions, nothing keyed on an address. That is
- * a fact about today's backend rather than a property of this Worker, and on the day
- * it stops being true, spoofing any of them through here becomes trivial.
+ * What stays is a different question, and not answerable here. `x-forwarded-for` and
+ * the rest still travel, and are harmless only because the API behind this reads none
+ * of them — nothing is keyed on an address. That is a fact about today's backend rather
+ * than a property of this Worker, and on the day it stops being true, spoofing any of
+ * them through here becomes trivial.
  */
 const NOT_FORWARDED = [
   ...HOP_BY_HOP,
   ...UPSTREAM_CREDENTIALS,
+
+  // The sign-in, as a credential for this hostname — in the header and in the cookie
+  // alike. The API is handed what the token says rather than the token, and has no
+  // sessions of its own for a cookie to belong to.
+  SIGN_IN_TOKEN_HEADER,
+  'cookie',
 
   // Addressed to this origin. Cloud Run routes by the name in the URL, and `fetch`
   // derives that itself; leaving ours on would address the request to a service that
@@ -107,8 +168,16 @@ const NOT_FORWARDED = [
   'host',
 ] as const;
 
-/** The request as the API should see it, carrying proof that this Worker sent it. */
-const callApi = async (request: Request, pathname: string, env: Env): Promise<Response> => {
+/**
+ * The request as the API should see it: carrying proof that this Worker sent it, and
+ * naming [user] as the caller — or nobody, for a sender that did not sign in.
+ */
+const callApi = async (
+  request: Request,
+  pathname: string,
+  env: Env,
+  user: SignedInUser | null,
+): Promise<Response> => {
   const idToken = await minterFor(env.GCP_SA_KEY).idTokenFor(env.API_TARGET);
 
   const target = new URL(pathname + new URL(request.url).search, env.API_TARGET);
@@ -119,12 +188,23 @@ const callApi = async (request: Request, pathname: string, env: Env): Promise<Re
     headers.delete(header);
   }
 
-  // Whose name the upstream request travels under. `authorization` is free to use
-  // while nothing authenticates the caller of this Worker; when something does, the
-  // browser's own credential wants this header and ours moves to
-  // `x-serverless-authorization` — which is stripped above, so a caller cannot get
-  // there first.
-  headers.set('authorization', `Bearer ${idToken}`);
+  // Collected before deleting, so the deletion is not done to the thing being walked.
+  for (const header of [...headers.keys()]) {
+    if (header.startsWith(IDENTITY_HEADER_PREFIX)) {
+      headers.delete(header);
+    }
+  }
+
+  if (user !== null) {
+    headers.set(IDENTITY_HEADERS.subject, user.subject);
+    headers.set(IDENTITY_HEADERS.email, user.email);
+  }
+
+  // Whose name the upstream request travels under. Cloud Run reads this header ahead of
+  // `authorization` and leaves that one to the application — which a webhook sender may
+  // well use for its own credential. Stripped from what the caller sent, so nobody gets
+  // here first.
+  headers.set('x-serverless-authorization', `Bearer ${idToken}`);
 
   return fetch(
     new Request(target, {
@@ -139,23 +219,64 @@ const callApi = async (request: Request, pathname: string, env: Env): Promise<Re
   );
 };
 
+/**
+ * What a request for the API is told when it carries no sign-in this Worker believes.
+ *
+ * Forbidden rather than unauthorized: the login stands in front of this hostname, so a
+ * request reaching here without a good token did not come the way a signed-in browser
+ * does, and there is no challenge to answer it with that it could meet here. Why it was
+ * refused is in the log.
+ */
+const notSignedIn = (): Response => new Response(null, { status: 403 });
+
+/**
+ * Runs [call], which reaches upstream, and answers for it when it fails.
+ *
+ * A key that will not import, keys or a token endpoint that will not answer, an API that
+ * cannot be reached. The details are logged where an operator can read them; the browser
+ * gets to know only that the API did not answer.
+ */
+const answeringFailures = async (call: () => Promise<Response>): Promise<Response> => {
+  try {
+    return await call();
+  } catch (failure) {
+    console.error('the API could not be called', failure);
+
+    return new Response('the API is unavailable', { status: 502 });
+  }
+};
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const route = routeFor(new URL(request.url).pathname);
 
-    if (route.to === 'assets') {
-      return env.ASSETS.fetch(request);
-    }
+    switch (route.to) {
+      case 'assets':
+        return env.ASSETS.fetch(request);
 
-    try {
-      return await callApi(request, route.pathname, env);
-    } catch (failure) {
-      // A key that will not import, a token endpoint that refuses, an API that cannot
-      // be reached. The details are logged where an operator can read them; the
-      // browser gets to know only that the API did not answer.
-      console.error('the API could not be called', failure);
+      case 'webhooks':
+        return answeringFailures(() => callApi(request, route.pathname, env, null));
 
-      return new Response('the API is unavailable', { status: 502 });
+      case 'api': {
+        const token = request.headers.get(SIGN_IN_TOKEN_HEADER);
+
+        if (token === null) {
+          console.warn('refusing an API request: it carries no sign-in token');
+
+          return notSignedIn();
+        }
+
+        return answeringFailures(async () => {
+          const user = await verifierFor(env).verify(token);
+
+          // Nothing has been spent upstream yet, and if the token is no good nothing will be.
+          if (user === null) {
+            return notSignedIn();
+          }
+
+          return callApi(request, route.pathname, env, user);
+        });
+      }
     }
   },
 } satisfies ExportedHandler<Env>;

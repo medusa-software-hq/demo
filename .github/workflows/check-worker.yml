@@ -38,3 +38,6 @@ jobs:
 
       - name: Run `tsc`
         run: npx --no-install tsc --noEmit
+
+      - name: Run tests
+        run: npm test

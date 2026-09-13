@@ -4,17 +4,35 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.fail
 import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
 import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.api.client.ApiClient
 import software.medusa.demo.backend.stack.BackendStackHandle
 import software.medusa.demo.backend.stack.BackendStackStarter
 import software.medusa.demo.backend.stack.SharedDatabaseCluster
+import software.medusa.demo.backend.stack.TestCaller
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 class CounterRoutesTest {
   private fun BackendStackHandle.apiClient(): ApiClient =
-      ApiClient.connect(baseUrl = "http://localhost:${serviceHandle.port}")
+      ApiClient.connect(
+          baseUrl = "http://localhost:${serviceHandle.port}",
+          okHttpClient =
+              OkHttpClient.Builder()
+                  .addInterceptor { chain ->
+                    chain.proceed(
+                        chain
+                            .request()
+                            .newBuilder()
+                            .apply {
+                              TestCaller.headers.forEach { (name, value) -> header(name, value) }
+                            }
+                            .build(),
+                    )
+                  }
+                  .build(),
+      )
 
   /**
    * Runs [call], failing the test rather than crashing it when the API does not answer.
