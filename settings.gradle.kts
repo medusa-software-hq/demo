@@ -18,6 +18,8 @@ include(
     ":backend:local-stack",
     // Brings a database's schema up to date, on purpose rather than as a side effect of starting.
     ":backend:migrate-database",
+    // Writes the database dumps the migration tests start from, and restores them for those tests.
+    ":backend:dump-database",
     // How the Service is started on Cloud Run.
     ":backend:service:cloud-run",
 )

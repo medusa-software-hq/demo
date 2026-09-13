@@ -6,6 +6,15 @@ import software.medusa.demo.backend.storage.Database
 private const val databaseUrlVariableName = "DATABASE_URL"
 
 /**
+ * Brings the database at [databaseUrl] up to date, and answers how many migrations that took.
+ *
+ * Everything this module does apart from reading the environment, so the migration tests run
+ * exactly this.
+ */
+fun migrateDatabase(databaseUrl: String): Int =
+    Database.connect(databaseUrl).use { dataSource -> Database.migrate(dataSource) }
+
+/**
  * Brings a database's schema up to date, and does nothing else.
  *
  * Run it with `--no-daemon`: a reused Gradle daemon keeps the environment it started with, so it
@@ -18,7 +27,5 @@ fun main() {
   val databaseUrl =
       checkNotNull(System.getenv(databaseUrlVariableName)) { "$databaseUrlVariableName is not set" }
 
-  Database.connect(databaseUrl).use { dataSource ->
-    println("Applied ${Database.migrate(dataSource)} migration(s)")
-  }
+  println("Applied ${migrateDatabase(databaseUrl)} migration(s)")
 }

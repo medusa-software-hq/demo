@@ -29,8 +29,9 @@ jobs:
 
       # `build` is compile, generate, format check, detekt and test in one — including
       # the tests that start the service and call it over HTTP. Those run against an
-      # embedded Postgres started from Maven-provided binaries, so this job needs no Docker
-      # for them.
+      # embedded Postgres started from Maven-provided binaries. The migration tests restore a
+      # real database dump, which needs `psql`, so they start a Postgres container on the
+      # runner's Docker.
       - name: Run `gradle build`
         run: ./gradlew build
 

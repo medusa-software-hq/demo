@@ -10,6 +10,11 @@ dependencies {
   implementation(project(":backend:storage"))
 
   runtimeOnly(libs.logback.classic)
+
+  // Restores a real database dump into a Postgres container before migrating it.
+  testImplementation(project(":backend:dump-database"))
+  testImplementation(libs.kotlinx.coroutines.core)
+  testImplementation(libs.kotlin.test)
 }
 
 application { mainClass = "software.medusa.demo.backend.migrate_database.MainKt" }
