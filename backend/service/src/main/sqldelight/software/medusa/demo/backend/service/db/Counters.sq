@@ -1,0 +1,23 @@
+-- The table as it is now. Flyway's migrations are what build it in a real database; this is what the
+-- queries below are checked against, and the two have to agree.
+CREATE TABLE counters (
+    id      TEXT   PRIMARY KEY,
+    count   BIGINT NOT NULL,
+    ordinal BIGINT GENERATED ALWAYS AS IDENTITY
+);
+
+listAll:
+SELECT id, count FROM counters ORDER BY ordinal;
+
+create:
+INSERT INTO counters (id, count) VALUES (:id, :count);
+
+delete:
+DELETE FROM counters WHERE id = :id;
+
+getCurrent:
+SELECT count FROM counters WHERE id = :id;
+
+-- One statement, so it is atomic, and RETURNING hands back the result. No row means no such counter.
+adjust:
+UPDATE counters SET count = count + :by WHERE id = :id RETURNING count;
