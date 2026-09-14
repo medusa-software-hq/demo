@@ -5,6 +5,9 @@ import * as sdk from './gen/sdk.gen.ts';
 /**
  * The API, in the answers each operation can actually give.
  *
+ * Counters, which everyone shares, and todos, which are the caller's own — though nothing here
+ * says whose, since the Worker in front of the service names the caller and this client never does.
+ *
  * The same shape as `todo-board`'s client, minus the parts that exist for signing people in:
  * nothing authenticates the caller of this page yet, so there is no token to present and no
  * refusal to act on. What the two still share is the important bit — an outcome the contract
@@ -44,6 +47,42 @@ export type DemoCounterDeletedResponse =
   | { readonly kind: typeof DemoCounterResponseKinds.deleted }
   | DemoCounterNoSuchCounterResponse;
 
+/** One of the caller's todos. */
+export interface DemoTodo {
+  readonly todoId: string;
+  readonly title: string;
+  readonly done: boolean;
+}
+
+export const DemoTodoResponseKinds = {
+  created: 'created',
+  blankTitle: 'blankTitle',
+  updated: 'updated',
+  deleted: 'deleted',
+  noSuchTodo: 'noSuchTodo',
+} as const;
+
+/** The caller has no such todo — which is also what somebody else's todo looks like. */
+export type DemoTodoNoSuchTodoResponse = {
+  readonly kind: typeof DemoTodoResponseKinds.noSuchTodo;
+};
+
+const noSuchTodoResponse: DemoTodoNoSuchTodoResponse = {
+  kind: DemoTodoResponseKinds.noSuchTodo,
+};
+
+export type DemoTodoCreatedResponse =
+  | { readonly kind: typeof DemoTodoResponseKinds.created; readonly todoId: string }
+  | { readonly kind: typeof DemoTodoResponseKinds.blankTitle };
+
+export type DemoTodoUpdatedResponse =
+  | { readonly kind: typeof DemoTodoResponseKinds.updated }
+  | DemoTodoNoSuchTodoResponse;
+
+export type DemoTodoDeletedResponse =
+  | { readonly kind: typeof DemoTodoResponseKinds.deleted }
+  | DemoTodoNoSuchTodoResponse;
+
 export const DemoApiErrorKinds = {
   network: 'network',
   incompatibility: 'incompatibility',
@@ -66,6 +105,10 @@ export type DemoApiClient = {
   getCount(counterId: string): Promise<DemoCounterReceivedResponse>;
   incrementCount(counterId: string): Promise<DemoCounterAdjustmentResponse>;
   decrementCount(counterId: string): Promise<DemoCounterAdjustmentResponse>;
+  listTodos(): Promise<readonly DemoTodo[]>;
+  createTodo(title: string): Promise<DemoTodoCreatedResponse>;
+  setTodoDone(todoId: string, done: boolean): Promise<DemoTodoUpdatedResponse>;
+  deleteTodo(todoId: string): Promise<DemoTodoDeletedResponse>;
 };
 
 type RawResult<DataT> = {
@@ -215,6 +258,64 @@ export function createDemoApiClient(baseUrl: string): DemoApiClient {
         'decrementCount',
         () => sdk.decrementCount({ client: httpClient, path: { counterId } }),
         processRawAdjustmentResponse,
+      ),
+
+    listTodos: () =>
+      wrapCall(
+        'listTodos',
+        () => sdk.listTodos({ client: httpClient }),
+        (response, data) => (response.status === StatusCodes.OK && data ? data.todos : undefined),
+      ),
+
+    createTodo: (title) =>
+      wrapCall(
+        'createTodo',
+        () => sdk.createTodo({ client: httpClient, body: { title } }),
+        (response, data) => {
+          if (response.status === StatusCodes.OK && data) {
+            return { kind: DemoTodoResponseKinds.created, todoId: data.todoId } as const;
+          }
+
+          if (response.status === StatusCodes.BAD_REQUEST) {
+            return { kind: DemoTodoResponseKinds.blankTitle } as const;
+          }
+
+          return undefined;
+        },
+      ),
+
+    setTodoDone: (todoId, done) =>
+      wrapCall(
+        'setTodoDone',
+        () => sdk.setTodoDone({ client: httpClient, path: { todoId }, body: { done } }),
+        (response) => {
+          if (response.status === StatusCodes.NO_CONTENT) {
+            return { kind: DemoTodoResponseKinds.updated } as const;
+          }
+
+          if (response.status === StatusCodes.NOT_FOUND) {
+            return noSuchTodoResponse;
+          }
+
+          return undefined;
+        },
+      ),
+
+    deleteTodo: (todoId) =>
+      wrapCall(
+        'deleteTodo',
+        () => sdk.deleteTodo({ client: httpClient, path: { todoId } }),
+        (response) => {
+          if (response.status === StatusCodes.NO_CONTENT) {
+            return { kind: DemoTodoResponseKinds.deleted } as const;
+          }
+
+          if (response.status === StatusCodes.NOT_FOUND) {
+            return noSuchTodoResponse;
+          }
+
+          return undefined;
+        },
       ),
   };
 }
