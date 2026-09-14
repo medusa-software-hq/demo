@@ -111,6 +111,20 @@ export const worker = new cloudflare.WorkersScript(
         // One page, many routes. A URL that names no file is a route the app knows
         // about, so the app is the right thing to answer with.
         notFoundHandling: 'single-page-application',
+
+        /**
+         * Except for the paths that are not the page's at all.
+         *
+         * Single-page handling answers a browser's navigation to a path no file matches with the
+         * page, before the Worker is asked — so a browser opening a webhook or API address would
+         * be shown the app, and never reach the thing the address names. Requests from anything
+         * but a browser were never affected, which is how this went unnoticed. The Worker runs
+         * first on these, whoever is asking.
+         *
+         * The same prefixes `routing.ts` gives to the API, each with and without what follows it:
+         * a rule ending in a wildcard does not match the bare prefix.
+         */
+        runWorkerFirst: ['/api', '/api/*', '/webhooks', '/webhooks/*'],
       },
     },
 
