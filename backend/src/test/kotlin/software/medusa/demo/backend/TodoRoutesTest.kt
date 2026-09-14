@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
 import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.backend.stack.BackendStackStarter
 import software.medusa.demo.backend.stack.SharedDatabaseCluster
+import software.medusa.demo.backend.stack.SharedTemporalServer
 import software.medusa.demo.backend.stack.TestCaller
 import software.medusa.demo.core.Todo
 import software.medusa.demo.core.TodoId
@@ -23,7 +24,8 @@ class TodoRoutesTest {
 
   @Test
   fun `somebody who has added nothing has no todos`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       assertEquals(
           expected = emptyList(),
           actual = assertApiCallSucceeds { stackHandle.apiClientFor().listTodos() },
@@ -33,7 +35,8 @@ class TodoRoutesTest {
 
   @Test
   fun `added todos are listed not done yet, oldest first`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val first = createTodo(apiClient, title = "Water the plants")
       val second = createTodo(apiClient, title = "Call the plumber")
@@ -51,7 +54,8 @@ class TodoRoutesTest {
 
   @Test
   fun `a todo can be marked done and back, and it sticks`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val todoId = createTodo(apiClient, title = "Water the plants")
 
@@ -79,7 +83,8 @@ class TodoRoutesTest {
 
   @Test
   fun `a title that says nothing is refused, and nothing is added`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
 
       assertEquals(
@@ -93,7 +98,8 @@ class TodoRoutesTest {
 
   @Test
   fun `a deleted todo is gone`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val todoId = createTodo(apiClient, title = "Water the plants")
 
@@ -120,7 +126,8 @@ class TodoRoutesTest {
   // change it, or remove it — and cannot even tell it is there.
   @Test
   fun `somebody else's todos can be neither seen nor touched`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val owner = stackHandle.apiClientFor(TestCaller.someone)
       val stranger = stackHandle.apiClientFor(TestCaller.someoneElse)
       val todoId = createTodo(owner, title = "Water the plants")

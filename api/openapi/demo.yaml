@@ -157,6 +157,34 @@ paths:
             The caller has no todo with that id — including when somebody else does, which is
             deliberately not told apart.
 
+  /work:
+    get:
+      operationId: getWork
+      tags: [RawWork]
+      summary: Whether work can be started here, and the caller's own runs, oldest first.
+      responses:
+        "200":
+          description: >-
+            Whether this environment runs work, and the runs the caller has started — which are
+            still there to read where work is no longer enabled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawWorkOverview" }
+
+  /work/runs:
+    post:
+      operationId: startWork
+      tags: [RawWork]
+      summary: Start a run of work for the caller.
+      responses:
+        "200":
+          description: The run is recorded and on its way; its progress shows in the overview.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawWorkRunStartedReply" }
+        "409":
+          description: This environment runs no work. Nothing was recorded or started.
+
 components:
   parameters:
     CounterId:
@@ -260,3 +288,42 @@ components:
         done:
           type: boolean
           description: Whether the todo is done.
+
+    RawWorkOverview:
+      type: object
+      required: [enabled, runs]
+      properties:
+        enabled:
+          type: boolean
+          description: Whether a run can be started in this environment.
+        runs:
+          type: array
+          description: The caller's runs, oldest first.
+          items: { $ref: "#/components/schemas/RawWorkRun" }
+
+    RawWorkRun:
+      type: object
+      required: [runId, stepsDone, stepsTotal]
+      properties:
+        runId:
+          type: string
+          description: The run's id.
+        stepsDone:
+          type: integer
+          format: int32
+          description: How many of its steps are done.
+        stepsTotal:
+          type: integer
+          format: int32
+          description: How many steps it takes.
+        result:
+          type: string
+          description: What the run came to. Absent until it has finished.
+
+    RawWorkRunStartedReply:
+      type: object
+      required: [runId]
+      properties:
+        runId:
+          type: string
+          description: The new run's id.

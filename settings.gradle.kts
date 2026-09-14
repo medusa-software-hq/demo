@@ -15,6 +15,10 @@ include(
     // Where the data lives: the store, the schema, the migrations. Shared by whatever reads or writes it.
     ":backend:storage",
     ":backend:service",
+    // What the Service and a worker agree on about work: the workflow, and whether there is any.
+    ":backend:work",
+    // Does the work the Service starts.
+    ":backend:worker",
     ":backend:local-stack",
     // Brings a database's schema up to date, on purpose rather than as a side effect of starting.
     ":backend:migrate-database",

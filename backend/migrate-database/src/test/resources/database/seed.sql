@@ -16,3 +16,10 @@ INSERT INTO todos (id, owner, title, done) VALUES
     ('1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', 'someone@medusa.software', 'Already done', TRUE),
     ('2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e', 'someone-else@medusa.software', 'Zażółć gęślą jaźń 漢字 ✓', FALSE),
     ('3c4d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f', 'someone-else@medusa.software', repeat('long ', 200), TRUE);
+
+-- Work runs, since version 3: one finished, one caught halfway through, and somebody else's that
+-- has not got past its first step.
+INSERT INTO work_runs (id, owner, steps_total, steps_done, result) VALUES
+    ('4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80', 'someone@medusa.software', 6, 6, 'Did 6 steps; the answer is 42'),
+    ('5e6f7a8b-9c0d-4e1f-8a2b-4c5d6e7f8091', 'someone@medusa.software', 6, 3, NULL),
+    ('6f7a8b9c-0d1e-4f2a-9b3c-5d6e7f809102', 'someone-else@medusa.software', 3, 0, NULL);
