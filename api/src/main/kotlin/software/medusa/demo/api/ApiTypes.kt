@@ -1,5 +1,7 @@
 package software.medusa.demo.api
 
+import software.medusa.demo.core.TodoId
+
 /**
  * The answers each operation can give.
  *
@@ -42,5 +44,32 @@ data object ApiTypes {
 
     /** No counter has that id. */
     data object NotFound : DecrementCountResponse
+  }
+
+  /** What adding a todo can come to. */
+  sealed interface CreateTodoResponse {
+    /** The todo was added. */
+    data class Created(val todoId: TodoId) : CreateTodoResponse
+
+    /** The title says nothing, so there was nothing to add. */
+    data object BlankTitle : CreateTodoResponse
+  }
+
+  /** What marking a todo done, or not, can come to. */
+  sealed interface SetTodoDoneResponse {
+    /** The todo is now as asked. */
+    data object Updated : SetTodoDoneResponse
+
+    /** The caller has no todo with that id. */
+    data object NotFound : SetTodoDoneResponse
+  }
+
+  /** What deleting a todo can come to. */
+  sealed interface DeleteTodoResponse {
+    /** The todo was there, and is not any more. */
+    data object Deleted : DeleteTodoResponse
+
+    /** The caller has no todo with that id. */
+    data object NotFound : DeleteTodoResponse
   }
 }

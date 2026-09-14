@@ -2,65 +2,18 @@ package software.medusa.demo.backend
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.fail
 import kotlinx.coroutines.runBlocking
-import okhttp3.OkHttpClient
 import software.medusa.demo.api.ApiTypes
-import software.medusa.demo.api.client.ApiClient
-import software.medusa.demo.backend.stack.BackendStackHandle
 import software.medusa.demo.backend.stack.BackendStackStarter
 import software.medusa.demo.backend.stack.SharedDatabaseCluster
-import software.medusa.demo.backend.stack.TestCaller
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 class CounterRoutesTest {
-  private fun BackendStackHandle.apiClient(): ApiClient =
-      ApiClient.connect(
-          baseUrl = "http://localhost:${serviceHandle.port}",
-          okHttpClient =
-              OkHttpClient.Builder()
-                  .addInterceptor { chain ->
-                    chain.proceed(
-                        chain
-                            .request()
-                            .newBuilder()
-                            .apply {
-                              TestCaller.headers.forEach { (name, value) -> header(name, value) }
-                            }
-                            .build(),
-                    )
-                  }
-                  .build(),
-      )
-
-  /**
-   * Runs [call], failing the test rather than crashing it when the API does not answer.
-   *
-   * A service that cannot be reached is a red test, not a broken one: nothing is wrong with the
-   * code under test, and the report should not say there is. None of these errors carry anything —
-   * what happened is in the log, written where the client gave up on it.
-   */
-  private inline fun <ResponseT> assertApiCallSucceeds(call: () -> ResponseT): ResponseT =
-      try {
-        call()
-      } catch (callError: ApiClient.CallError) {
-        // Exhaustive, so a new kind of failure fails to compile here rather than arriving as a
-        // crash nobody chose a shade of red for.
-        val what =
-            when (callError) {
-              ApiClient.NetworkError -> "the network did not carry it"
-              ApiClient.IncompatibilityError -> "the server did not speak the contract"
-              ApiClient.InternalServerError -> "the server failed the request"
-            }
-
-        fail("Expected the API call to succeed, but $what")
-      }
-
   @Test
   fun `a created counter starts at zero`() = runBlocking {
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-      val apiClient = stackHandle.apiClient()
+      val apiClient = stackHandle.apiClientFor()
       val counterId = assertApiCallSucceeds { apiClient.createCounter() }
 
       assertEquals(
@@ -73,7 +26,7 @@ class CounterRoutesTest {
   @Test
   fun `incrementing and decrementing move the counter, and the move sticks`() = runBlocking {
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-      val apiClient = stackHandle.apiClient()
+      val apiClient = stackHandle.apiClientFor()
       val counterId = assertApiCallSucceeds { apiClient.createCounter() }
 
       assertEquals(
@@ -103,7 +56,7 @@ class CounterRoutesTest {
   @Test
   fun `one counter moving leaves the others where they were`() = runBlocking {
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-      val apiClient = stackHandle.apiClient()
+      val apiClient = stackHandle.apiClientFor()
       val movedCounterId = assertApiCallSucceeds { apiClient.createCounter() }
       val untouchedCounterId = assertApiCallSucceeds { apiClient.createCounter() }
 
@@ -124,7 +77,7 @@ class CounterRoutesTest {
   @Test
   fun `listing answers the counters that were created, oldest first`() = runBlocking {
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-      val apiClient = stackHandle.apiClient()
+      val apiClient = stackHandle.apiClientFor()
 
       assertEquals(
           expected = emptyList(),
@@ -151,7 +104,7 @@ class CounterRoutesTest {
   @Test
   fun `listing stops reporting a counter that was deleted`() = runBlocking {
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-      val apiClient = stackHandle.apiClient()
+      val apiClient = stackHandle.apiClientFor()
       val keptCounterId = assertApiCallSucceeds { apiClient.createCounter() }
       val doomedCounterId = assertApiCallSucceeds { apiClient.createCounter() }
 
@@ -167,7 +120,7 @@ class CounterRoutesTest {
   @Test
   fun `a deleted counter is gone`() = runBlocking {
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-      val apiClient = stackHandle.apiClient()
+      val apiClient = stackHandle.apiClientFor()
       val counterId = assertApiCallSucceeds { apiClient.createCounter() }
 
       assertEquals(
@@ -190,7 +143,7 @@ class CounterRoutesTest {
   @Test
   fun `an id no counter has is not quietly created by using it`() = runBlocking {
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-      val apiClient = stackHandle.apiClient()
+      val apiClient = stackHandle.apiClientFor()
       val strangerCounterId = CounterId(value = "no-such-counter")
 
       assertEquals(
@@ -210,21 +163,21 @@ class CounterRoutesTest {
   fun `a fresh stack has none of the counters the last one had`() = runBlocking {
     val counterId =
         BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
-          assertApiCallSucceeds { stackHandle.apiClient().createCounter() }
+          assertApiCallSucceeds { stackHandle.apiClientFor().createCounter() }
         }
 
     BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
       assertEquals(
           expected = ApiTypes.GetCountResponse.NotFound,
           actual =
-              assertApiCallSucceeds { stackHandle.apiClient().getCount(counterId = counterId) },
+              assertApiCallSucceeds { stackHandle.apiClientFor().getCount(counterId = counterId) },
       )
 
       // And it does not merely deny knowing that one: it has nothing at all. Each stack gets a
       // database of its own, so no test here can pass on what another one left behind.
       assertEquals(
           expected = emptyList(),
-          actual = assertApiCallSucceeds { stackHandle.apiClient().listCounters() },
+          actual = assertApiCallSucceeds { stackHandle.apiClientFor().listCounters() },
       )
     }
   }
@@ -234,7 +187,7 @@ class CounterRoutesTest {
     SharedDatabaseCluster.shared.createDatabase().let { database ->
       val counterId =
           BackendStackStarter.start(database).use { stackHandle ->
-            val apiClient = stackHandle.apiClient()
+            val apiClient = stackHandle.apiClientFor()
             val createdCounterId = assertApiCallSucceeds { apiClient.createCounter() }
 
             assertApiCallSucceeds { apiClient.incrementCount(counterId = createdCounterId) }
@@ -248,7 +201,7 @@ class CounterRoutesTest {
       BackendStackStarter.start(database).use { stackHandle ->
         assertEquals(
             expected = listOf(Counter(id = counterId, count = 1)),
-            actual = assertApiCallSucceeds { stackHandle.apiClient().listCounters() },
+            actual = assertApiCallSucceeds { stackHandle.apiClientFor().listCounters() },
         )
       }
     }

@@ -6,6 +6,11 @@ import software.medusa.demo.api.raw.models.RawCountReply
 import software.medusa.demo.api.raw.models.RawCounter
 import software.medusa.demo.api.raw.models.RawCounterCreatedReply
 import software.medusa.demo.api.raw.models.RawCounterListReply
+import software.medusa.demo.api.raw.models.RawTodo
+import software.medusa.demo.api.raw.models.RawTodoCreatedReply
+import software.medusa.demo.api.raw.models.RawTodoCreation
+import software.medusa.demo.api.raw.models.RawTodoDoneUpdate
+import software.medusa.demo.api.raw.models.RawTodoListReply
 
 /**
  * Serde is locked down by default, so each externally-defined model is registered here rather than
@@ -15,6 +20,11 @@ import software.medusa.demo.api.raw.models.RawCounterListReply
 @SerdeImport(RawCounter::class)
 @SerdeImport(RawCounterCreatedReply::class)
 @SerdeImport(value = RawCounterListReply::class, mixin = AlwaysComplete::class)
+@SerdeImport(RawTodo::class)
+@SerdeImport(RawTodoCreatedReply::class)
+@SerdeImport(RawTodoCreation::class)
+@SerdeImport(RawTodoDoneUpdate::class)
+@SerdeImport(value = RawTodoListReply::class, mixin = AlwaysComplete::class)
 class ServerSerdeConfig
 
 /**

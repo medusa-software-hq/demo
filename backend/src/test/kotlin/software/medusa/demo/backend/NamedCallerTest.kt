@@ -40,7 +40,7 @@ class NamedCallerTest {
 
   @Test
   fun `a request naming its caller is answered`() {
-    assertEquals(expected = 200, actual = statusOf("/counters", TestCaller.headers))
+    assertEquals(expected = 200, actual = statusOf("/counters", TestCaller.someone.headers))
   }
 
   @Test
@@ -54,7 +54,11 @@ class NamedCallerTest {
   fun `a request naming only half a caller is refused`() {
     assertEquals(
         expected = 403,
-        actual = statusOf("/counters", TestCaller.headers.filterKeys { it.endsWith("-subject") }),
+        actual =
+            statusOf(
+                "/counters",
+                TestCaller.someone.headers.filterKeys { it.endsWith("-subject") },
+            ),
     )
   }
 

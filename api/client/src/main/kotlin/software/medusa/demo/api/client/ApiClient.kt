@@ -15,14 +15,26 @@ import software.medusa.demo.api.raw.client.ApiException
 import software.medusa.demo.api.raw.client.ApiResponse
 import software.medusa.demo.api.raw.client.ApiServerException
 import software.medusa.demo.api.raw.client.RawCounterClient
+import software.medusa.demo.api.raw.client.RawTodoClient
+import software.medusa.demo.api.raw.models.RawTodoCreation
+import software.medusa.demo.api.raw.models.RawTodoDoneUpdate
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
+import software.medusa.demo.core.Todo
+import software.medusa.demo.core.TodoId
 
 private val logger = LoggerFactory.getLogger(ApiClient::class.java)
 
-/** Demo API client. */
+/**
+ * Demo API client.
+ *
+ * One function per operation in the contract, so its size is the contract's size: splitting it to
+ * stay under a count would only move the same operations somewhere a caller has to look for them.
+ */
+@Suppress("TooManyFunctions")
 class ApiClient(
     private val rawCounterClient: RawCounterClient,
+    private val rawTodoClient: RawTodoClient,
 ) {
   /**
    * The call was not answered.
@@ -61,15 +73,24 @@ class ApiClient(
      * The HTTP client is the caller's to give, because what every request has to carry besides the
      * call itself — who is making it — is the caller's to know.
      */
-    fun connect(baseUrl: String, okHttpClient: OkHttpClient = OkHttpClient()): ApiClient =
-        ApiClient(
-            rawCounterClient =
-                RawCounterClient(
-                    objectMapper = ObjectMapper().registerKotlinModule(),
-                    baseUrl = baseUrl,
-                    okHttpClient = okHttpClient,
-                ),
-        )
+    fun connect(baseUrl: String, okHttpClient: OkHttpClient = OkHttpClient()): ApiClient {
+      val objectMapper = ObjectMapper().registerKotlinModule()
+
+      return ApiClient(
+          rawCounterClient =
+              RawCounterClient(
+                  objectMapper = objectMapper,
+                  baseUrl = baseUrl,
+                  okHttpClient = okHttpClient,
+              ),
+          rawTodoClient =
+              RawTodoClient(
+                  objectMapper = objectMapper,
+                  baseUrl = baseUrl,
+                  okHttpClient = okHttpClient,
+              ),
+      )
+    }
   }
 
   /**
@@ -203,6 +224,105 @@ class ApiClient(
           onClientError = { exception ->
             when (exception.statusCode) {
               HttpURLConnection.HTTP_NOT_FOUND -> ApiTypes.DecrementCountResponse.NotFound
+
+              else -> null
+            }
+          },
+      )
+
+  /**
+   * Lists the caller's own todos.
+   *
+   * @return The todos, oldest first.
+   */
+  suspend fun listTodos(): List<Todo> =
+      callRaw(
+          operation = "listTodos",
+          call = { rawTodoClient.listTodos() },
+          onSuccess = { response ->
+            when (response.statusCode) {
+              HttpURLConnection.HTTP_OK ->
+                  response.requireData(operation = "listTodos").todos.map { rawTodo ->
+                    Todo(
+                        id = TodoId(value = rawTodo.todoId),
+                        title = rawTodo.title,
+                        done = rawTodo.done,
+                    )
+                  }
+
+              else -> null
+            }
+          },
+          // The contract gives this operation no 4xx at all.
+          onClientError = { null },
+      )
+
+  /** Adds a todo titled [title] for the caller. */
+  suspend fun createTodo(title: String): ApiTypes.CreateTodoResponse =
+      callRaw(
+          operation = "createTodo",
+          call = { rawTodoClient.createTodo(rawTodoCreation = RawTodoCreation(title = title)) },
+          onSuccess = { response ->
+            when (response.statusCode) {
+              HttpURLConnection.HTTP_OK ->
+                  ApiTypes.CreateTodoResponse.Created(
+                      todoId =
+                          TodoId(value = response.requireData(operation = "createTodo").todoId),
+                  )
+
+              else -> null
+            }
+          },
+          onClientError = { exception ->
+            when (exception.statusCode) {
+              HttpURLConnection.HTTP_BAD_REQUEST -> ApiTypes.CreateTodoResponse.BlankTitle
+
+              else -> null
+            }
+          },
+      )
+
+  /** Marks the caller's todo [todoId] done, or not. */
+  suspend fun setTodoDone(todoId: TodoId, done: Boolean): ApiTypes.SetTodoDoneResponse =
+      callRaw(
+          operation = "setTodoDone",
+          call = {
+            rawTodoClient.setTodoDone(
+                rawTodoDoneUpdate = RawTodoDoneUpdate(done = done),
+                todoId = todoId.value,
+            )
+          },
+          onSuccess = { response ->
+            when (response.statusCode) {
+              HttpURLConnection.HTTP_NO_CONTENT -> ApiTypes.SetTodoDoneResponse.Updated
+
+              else -> null
+            }
+          },
+          onClientError = { exception ->
+            when (exception.statusCode) {
+              HttpURLConnection.HTTP_NOT_FOUND -> ApiTypes.SetTodoDoneResponse.NotFound
+
+              else -> null
+            }
+          },
+      )
+
+  /** Deletes the caller's todo [todoId]. */
+  suspend fun deleteTodo(todoId: TodoId): ApiTypes.DeleteTodoResponse =
+      callRaw(
+          operation = "deleteTodo",
+          call = { rawTodoClient.deleteTodo(todoId = todoId.value) },
+          onSuccess = { response ->
+            when (response.statusCode) {
+              HttpURLConnection.HTTP_NO_CONTENT -> ApiTypes.DeleteTodoResponse.Deleted
+
+              else -> null
+            }
+          },
+          onClientError = { exception ->
+            when (exception.statusCode) {
+              HttpURLConnection.HTTP_NOT_FOUND -> ApiTypes.DeleteTodoResponse.NotFound
 
               else -> null
             }

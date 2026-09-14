@@ -3,7 +3,9 @@ info:
   title: Demo API
   version: 1.0.0
   description: >-
-    Counters, each one created and deleted on its own.
+    Counters, which everyone shares, and todos, which are each caller's own. Who is calling is
+    not a parameter of any operation: the gateway in front of the API names the caller, and an
+    operation on personal data answers for them and nobody else.
 
 paths:
   /counters:
@@ -90,6 +92,71 @@ paths:
         "404":
           description: No counter has that id.
 
+  /todos:
+    get:
+      operationId: listTodos
+      tags: [RawTodo]
+      summary: List the caller's own todos, oldest first.
+      responses:
+        "200":
+          description: The caller's todos, which may be none.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawTodoListReply" }
+
+    post:
+      operationId: createTodo
+      tags: [RawTodo]
+      summary: Add a todo for the caller, not done yet.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RawTodoCreation" }
+      responses:
+        "200":
+          description: The todo that was added.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RawTodoCreatedReply" }
+        "400":
+          description: The title is blank.
+
+  /todos/{todoId}:
+    delete:
+      operationId: deleteTodo
+      tags: [RawTodo]
+      summary: Delete one of the caller's todos.
+      parameters:
+        - $ref: "#/components/parameters/TodoId"
+      responses:
+        "204":
+          description: The todo is gone.
+        "404":
+          description: >-
+            The caller has no todo with that id — including when somebody else does, which is
+            deliberately not told apart.
+
+  /todos/{todoId}/done:
+    put:
+      operationId: setTodoDone
+      tags: [RawTodo]
+      summary: Mark one of the caller's todos done, or not done.
+      parameters:
+        - $ref: "#/components/parameters/TodoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RawTodoDoneUpdate" }
+      responses:
+        "204":
+          description: The todo is now as asked.
+        "404":
+          description: >-
+            The caller has no todo with that id — including when somebody else does, which is
+            deliberately not told apart.
+
 components:
   parameters:
     CounterId:
@@ -97,6 +164,13 @@ components:
       in: path
       required: true
       description: The counter's id.
+      schema: { type: string }
+
+    TodoId:
+      name: todoId
+      in: path
+      required: true
+      description: The todo's id.
       schema: { type: string }
 
   schemas:
@@ -139,3 +213,50 @@ components:
           type: integer
           format: int64
           description: The counter's value.
+
+    RawTodo:
+      type: object
+      required: [todoId, title, done]
+      properties:
+        todoId:
+          type: string
+          description: The todo's id.
+        title:
+          type: string
+          description: What is to be done.
+        done:
+          type: boolean
+          description: Whether it has been.
+
+    RawTodoListReply:
+      type: object
+      required: [todos]
+      properties:
+        todos:
+          type: array
+          description: The caller's todos, oldest first.
+          items: { $ref: "#/components/schemas/RawTodo" }
+
+    RawTodoCreation:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          description: What is to be done. Not blank.
+
+    RawTodoCreatedReply:
+      type: object
+      required: [todoId]
+      properties:
+        todoId:
+          type: string
+          description: The new todo's id.
+
+    RawTodoDoneUpdate:
+      type: object
+      required: [done]
+      properties:
+        done:
+          type: boolean
+          description: Whether the todo is done.
