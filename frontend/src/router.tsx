@@ -3,6 +3,7 @@ import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/
 import { AppLayout } from './AppLayout.tsx';
 import { CountersPage } from './CountersPage.tsx';
 import { TodosPage } from './TodosPage.tsx';
+import { WorkPage } from './WorkPage.tsx';
 
 /**
  * Where each page lives.
@@ -35,8 +36,14 @@ const todosRoute = createRoute({
   component: TodosPage,
 });
 
+const workRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/work',
+  component: WorkPage,
+});
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, countersRoute, todosRoute]),
+  routeTree: rootRoute.addChildren([indexRoute, countersRoute, todosRoute, workRoute]),
   defaultNotFoundComponent: () => <Text c="dimmed">There is no page at this address.</Text>,
 });
 

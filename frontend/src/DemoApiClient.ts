@@ -79,6 +79,29 @@ export type DemoTodoUpdatedResponse =
   | { readonly kind: typeof DemoTodoResponseKinds.updated }
   | DemoTodoNoSuchTodoResponse;
 
+/** A run of work the caller started, and how far it has got. Finished once it has a result. */
+export interface DemoWorkRun {
+  readonly runId: string;
+  readonly stepsDone: number;
+  readonly stepsTotal: number;
+  readonly result: string | null;
+}
+
+/** Whether work can be started here, and the caller's runs, oldest first. */
+export interface DemoWorkOverview {
+  readonly enabled: boolean;
+  readonly runs: readonly DemoWorkRun[];
+}
+
+export const DemoWorkResponseKinds = {
+  started: 'started',
+  disabled: 'disabled',
+} as const;
+
+export type DemoWorkStartResponse =
+  | { readonly kind: typeof DemoWorkResponseKinds.started; readonly runId: string }
+  | { readonly kind: typeof DemoWorkResponseKinds.disabled };
+
 export type DemoTodoDeletedResponse =
   | { readonly kind: typeof DemoTodoResponseKinds.deleted }
   | DemoTodoNoSuchTodoResponse;
@@ -109,6 +132,8 @@ export type DemoApiClient = {
   createTodo(title: string): Promise<DemoTodoCreatedResponse>;
   setTodoDone(todoId: string, done: boolean): Promise<DemoTodoUpdatedResponse>;
   deleteTodo(todoId: string): Promise<DemoTodoDeletedResponse>;
+  getWork(): Promise<DemoWorkOverview>;
+  startWork(): Promise<DemoWorkStartResponse>;
 };
 
 type RawResult<DataT> = {
@@ -258,6 +283,37 @@ export function createDemoApiClient(baseUrl: string): DemoApiClient {
         'decrementCount',
         () => sdk.decrementCount({ client: httpClient, path: { counterId } }),
         processRawAdjustmentResponse,
+      ),
+
+    getWork: () =>
+      wrapCall(
+        'getWork',
+        () => sdk.getWork({ client: httpClient }),
+        (response, data) =>
+          response.status === StatusCodes.OK && data
+            ? {
+                enabled: data.enabled,
+                runs: data.runs.map((run) => ({ ...run, result: run.result ?? null })),
+              }
+            : undefined,
+      ),
+
+    startWork: () =>
+      wrapCall(
+        'startWork',
+        () => sdk.startWork({ client: httpClient }),
+        (response, data) => {
+          if (response.status === StatusCodes.OK && data) {
+            return { kind: DemoWorkResponseKinds.started, runId: data.runId } as const;
+          }
+
+          // This environment runs no work. Nothing was started.
+          if (response.status === StatusCodes.CONFLICT) {
+            return { kind: DemoWorkResponseKinds.disabled } as const;
+          }
+
+          return undefined;
+        },
       ),
 
     listTodos: () =>
