@@ -6,6 +6,7 @@ import io.micronaut.http.HttpStatus
 import io.micronaut.http.annotation.RequestFilter
 import io.micronaut.http.annotation.ServerFilter
 import org.slf4j.LoggerFactory
+import software.medusa.demo.api.server.CallerHeaders
 
 private val logger = LoggerFactory.getLogger(NamedCallerFilter::class.java)
 
@@ -25,12 +26,6 @@ private val logger = LoggerFactory.getLogger(NamedCallerFilter::class.java)
 @ServerFilter(ServerFilter.MATCH_ALL_PATTERN)
 class NamedCallerFilter {
   companion object {
-    /** The caller's id, as whoever signed them in knows them. */
-    const val subjectHeader = "x-medusa-user-subject"
-
-    /** The caller's address, as their identity provider verified it. */
-    const val emailHeader = "x-medusa-user-email"
-
     /** Where webhooks arrive: the one path a request may reach naming nobody. */
     private const val webhooksPath = "/webhooks"
 
@@ -47,7 +42,7 @@ class NamedCallerFilter {
     }
 
     val named =
-        listOf(subjectHeader, emailHeader).all { header ->
+        listOf(CallerHeaders.subject, CallerHeaders.email).all { header ->
           !request.headers.get(header).isNullOrBlank()
         }
 

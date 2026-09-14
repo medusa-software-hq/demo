@@ -34,7 +34,9 @@ class BackendStackSmokeTest {
               HttpRequest.newBuilder(URI.create("$baseUrl$path"))
                   .timeout(requestTimeout)
                   .POST(HttpRequest.BodyPublishers.noBody())
-                  .apply { TestCaller.headers.forEach { (name, value) -> header(name, value) } }
+                  .apply {
+                    TestCaller.someone.headers.forEach { (name, value) -> header(name, value) }
+                  }
                   .build(),
               HttpResponse.BodyHandlers.ofString(),
           )

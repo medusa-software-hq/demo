@@ -3,8 +3,10 @@ package software.medusa.demo.backend.service
 import io.micronaut.context.ApplicationContext
 import io.micronaut.runtime.server.EmbeddedServer
 import software.medusa.demo.api.server.ProperRawCounterController
+import software.medusa.demo.api.server.ProperRawTodoController
 import software.medusa.demo.backend.storage.Database
 import software.medusa.demo.backend.storage.PostgresCounterStore
+import software.medusa.demo.backend.storage.PostgresTodoStore
 
 /** Service starter. */
 data object ServiceStarter {
@@ -21,10 +23,10 @@ data object ServiceStarter {
     // A start that fails here must not leave the pool open behind it.
     runCatching { Database.migrate(dataSource) }.onFailure { dataSource.close() }.getOrThrow()
 
-    val counterController =
-        ProperRawCounterController(
-            apiHandler =
-                ProperApiHandler(counterStore = PostgresCounterStore(dataSource = dataSource)),
+    val apiHandler =
+        ProperApiHandler(
+            counterStore = PostgresCounterStore(dataSource = dataSource),
+            todoStore = PostgresTodoStore(dataSource = dataSource),
         )
 
     val applicationContext =
@@ -33,7 +35,10 @@ data object ServiceStarter {
             .deduceEnvironment(false)
             // Fail the start, rather than whichever request arrives first.
             .eagerInitSingletons(true)
-            .singletons(counterController)
+            .singletons(
+                ProperRawCounterController(apiHandler = apiHandler),
+                ProperRawTodoController(apiHandler = apiHandler),
+            )
             .properties(mapOf("micronaut.server.port" to port))
             .start()
 

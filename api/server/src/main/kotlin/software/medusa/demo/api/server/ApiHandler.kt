@@ -3,6 +3,8 @@ package software.medusa.demo.api.server
 import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
+import software.medusa.demo.core.Todo
+import software.medusa.demo.core.TodoId
 
 /**
  * What a backend implements to answer the API.
@@ -38,4 +40,20 @@ interface ApiHandler {
 
   /** Decrements the counter [counterId] identifies. */
   suspend fun handleDecrementCount(counterId: CounterId): ApiTypes.DecrementCountResponse
+
+  /** Lists the caller's own todos, oldest first. */
+  context(caller: CallerInfo)
+  suspend fun handleListTodos(): List<Todo>
+
+  /** Adds a todo titled [title] for the caller. */
+  context(caller: CallerInfo)
+  suspend fun handleCreateTodo(title: String): ApiTypes.CreateTodoResponse
+
+  /** Marks the caller's todo [todoId] done, or not. */
+  context(caller: CallerInfo)
+  suspend fun handleSetTodoDone(todoId: TodoId, done: Boolean): ApiTypes.SetTodoDoneResponse
+
+  /** Deletes the caller's todo [todoId]. */
+  context(caller: CallerInfo)
+  suspend fun handleDeleteTodo(todoId: TodoId): ApiTypes.DeleteTodoResponse
 }

@@ -1,0 +1,27 @@
+-- The table as it is now. Flyway's migrations are what build it in a real database; this is what the
+-- queries below are checked against, and the two have to agree.
+CREATE TABLE todos (
+    id      TEXT    PRIMARY KEY,
+    owner   TEXT    NOT NULL,
+    title   TEXT    NOT NULL,
+    done    BOOLEAN NOT NULL,
+    ordinal BIGINT  GENERATED ALWAYS AS IDENTITY
+);
+
+CREATE INDEX todos_by_owner ON todos (owner, ordinal);
+
+-- Every query names the owner, so a todo id alone reaches nothing: somebody else's todo is, to a
+-- caller, a todo that does not exist.
+
+listForOwner:
+SELECT id, title, done FROM todos WHERE owner = :owner ORDER BY ordinal;
+
+create:
+INSERT INTO todos (id, owner, title, done) VALUES (:id, :owner, :title, FALSE);
+
+-- RETURNING, so no row back means there was nothing of this owner's to update.
+setDone:
+UPDATE todos SET done = :done WHERE id = :id AND owner = :owner RETURNING id;
+
+delete:
+DELETE FROM todos WHERE id = :id AND owner = :owner;
