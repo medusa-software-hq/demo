@@ -19,6 +19,19 @@ const config = new pulumi.Config();
 const accountId = config.require('cloudflareAccountId');
 const scriptName = config.require('workerName');
 
+/**
+ * What checking a sign-in takes: who issues the tokens, where their keys are published,
+ * and which of them are meant for this environment.
+ *
+ * Handed over by the platform, which puts the login in front of this hostname and so is
+ * the one that knows what its tokens look like. Nothing here says which login that is.
+ */
+const auth = {
+  issuer: config.require('authIssuer'),
+  keysUrl: config.require('authKeysUrl'),
+  audience: config.require('authAudience'),
+};
+
 /** Relative to the Pulumi project, which is `infra`. */
 const PACKAGE = '../worker';
 const ENTRY = `${PACKAGE}/src/index.ts`;
@@ -125,6 +138,14 @@ export const worker = new cloudflare.WorkersScript(
        * deployable, and not readable back out of the dashboard or the API.
        */
       { name: 'GCP_SA_KEY', type: 'secret_text', text: edgeKeyJson },
+
+      /**
+       * How it tells who signed in. None of these is a credential — each only describes
+       * what a valid token looks like — so plain text, readable back like the rest.
+       */
+      { name: 'AUTH_ISSUER', type: 'plain_text', text: auth.issuer },
+      { name: 'AUTH_KEYS_URL', type: 'plain_text', text: auth.keysUrl },
+      { name: 'AUTH_AUDIENCE', type: 'plain_text', text: auth.audience },
     ],
   },
   // Adopted rather than created: the platform stack made it, so that a hostname could

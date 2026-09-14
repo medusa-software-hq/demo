@@ -55,14 +55,19 @@ class ApiClient(
   data object InternalServerError : CallError()
 
   companion object {
-    /** Connects to the service at [baseUrl]. */
-    fun connect(baseUrl: String): ApiClient =
+    /**
+     * Connects to the service at [baseUrl], over [okHttpClient].
+     *
+     * The HTTP client is the caller's to give, because what every request has to carry besides the
+     * call itself — who is making it — is the caller's to know.
+     */
+    fun connect(baseUrl: String, okHttpClient: OkHttpClient = OkHttpClient()): ApiClient =
         ApiClient(
             rawCounterClient =
                 RawCounterClient(
                     objectMapper = ObjectMapper().registerKotlinModule(),
                     baseUrl = baseUrl,
-                    okHttpClient = OkHttpClient(),
+                    okHttpClient = okHttpClient,
                 ),
         )
   }
