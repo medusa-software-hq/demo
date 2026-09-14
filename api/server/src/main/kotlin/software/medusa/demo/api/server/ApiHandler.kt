@@ -5,7 +5,6 @@ import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 import software.medusa.demo.core.Todo
 import software.medusa.demo.core.TodoId
-import software.medusa.demo.core.UserId
 
 /**
  * What a backend implements to answer the API.
@@ -42,19 +41,19 @@ interface ApiHandler {
   /** Decrements the counter [counterId] identifies. */
   suspend fun handleDecrementCount(counterId: CounterId): ApiTypes.DecrementCountResponse
 
-  /** Lists [caller]'s own todos, oldest first. */
-  suspend fun handleListTodos(caller: UserId): List<Todo>
+  /** Lists the caller's own todos, oldest first. */
+  context(caller: CallerInfo)
+  suspend fun handleListTodos(): List<Todo>
 
-  /** Adds a todo titled [title] for [caller]. */
-  suspend fun handleCreateTodo(caller: UserId, title: String): ApiTypes.CreateTodoResponse
+  /** Adds a todo titled [title] for the caller. */
+  context(caller: CallerInfo)
+  suspend fun handleCreateTodo(title: String): ApiTypes.CreateTodoResponse
 
-  /** Marks [caller]'s todo [todoId] done, or not. */
-  suspend fun handleSetTodoDone(
-      caller: UserId,
-      todoId: TodoId,
-      done: Boolean,
-  ): ApiTypes.SetTodoDoneResponse
+  /** Marks the caller's todo [todoId] done, or not. */
+  context(caller: CallerInfo)
+  suspend fun handleSetTodoDone(todoId: TodoId, done: Boolean): ApiTypes.SetTodoDoneResponse
 
-  /** Deletes [caller]'s todo [todoId]. */
-  suspend fun handleDeleteTodo(caller: UserId, todoId: TodoId): ApiTypes.DeleteTodoResponse
+  /** Deletes the caller's todo [todoId]. */
+  context(caller: CallerInfo)
+  suspend fun handleDeleteTodo(todoId: TodoId): ApiTypes.DeleteTodoResponse
 }

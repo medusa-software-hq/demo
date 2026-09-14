@@ -14,22 +14,16 @@ import software.medusa.demo.core.TodoId
 /**
  * Mediates between the [apiHandler] and the [RawTodoController] HTTP-based interface, on behalf of
  * whoever the request names as its caller.
- *
- * The caller is read first thing in each route, before the handler is asked anything: the contract
- * does not carry it, so it comes from the request, and taking it before anything suspends keeps it
- * from depending on how far the request's context follows a coroutine.
  */
 @Controller
 class ProperRawTodoController(
     private val apiHandler: ApiHandler,
 ) : RawTodoController {
-  override suspend fun listTodos(): HttpResponse<RawTodoListReply> {
-    val caller = currentCaller()
-
-    return HttpResponse.ok(
+  override suspend fun listTodos(): HttpResponse<RawTodoListReply> = withCurrentCaller {
+    HttpResponse.ok(
         RawTodoListReply(
             todos =
-                apiHandler.handleListTodos(caller = caller).map { todo ->
+                apiHandler.handleListTodos().map { todo ->
                   RawTodo(todoId = todo.id.value, title = todo.title, done = todo.done)
                 },
         ),
@@ -38,22 +32,16 @@ class ProperRawTodoController(
 
   override suspend fun createTodo(
       rawTodoCreation: RawTodoCreation
-  ): HttpResponse<RawTodoCreatedReply> {
-    val caller = currentCaller()
-
-    return when (
-        val response = apiHandler.handleCreateTodo(caller = caller, title = rawTodoCreation.title)
-    ) {
+  ): HttpResponse<RawTodoCreatedReply> = withCurrentCaller {
+    when (val response = apiHandler.handleCreateTodo(title = rawTodoCreation.title)) {
       is ApiTypes.CreateTodoResponse.Created ->
           HttpResponse.ok(RawTodoCreatedReply(todoId = response.todoId.value))
       ApiTypes.CreateTodoResponse.BlankTitle -> HttpResponse.badRequest()
     }
   }
 
-  override suspend fun deleteTodo(todoId: String): HttpResponse<Unit> {
-    val caller = currentCaller()
-
-    return when (apiHandler.handleDeleteTodo(caller = caller, todoId = TodoId(todoId))) {
+  override suspend fun deleteTodo(todoId: String): HttpResponse<Unit> = withCurrentCaller {
+    when (apiHandler.handleDeleteTodo(todoId = TodoId(todoId))) {
       ApiTypes.DeleteTodoResponse.Deleted -> HttpResponse.noContent()
       ApiTypes.DeleteTodoResponse.NotFound -> HttpResponse.notFound()
     }
@@ -62,16 +50,8 @@ class ProperRawTodoController(
   override suspend fun setTodoDone(
       rawTodoDoneUpdate: RawTodoDoneUpdate,
       todoId: String,
-  ): HttpResponse<Unit> {
-    val caller = currentCaller()
-
-    return when (
-        apiHandler.handleSetTodoDone(
-            caller = caller,
-            todoId = TodoId(todoId),
-            done = rawTodoDoneUpdate.done,
-        )
-    ) {
+  ): HttpResponse<Unit> = withCurrentCaller {
+    when (apiHandler.handleSetTodoDone(todoId = TodoId(todoId), done = rawTodoDoneUpdate.done)) {
       ApiTypes.SetTodoDoneResponse.Updated -> HttpResponse.noContent()
       ApiTypes.SetTodoDoneResponse.NotFound -> HttpResponse.notFound()
     }
