@@ -11,6 +11,9 @@ import software.medusa.demo.api.raw.models.RawTodoCreatedReply
 import software.medusa.demo.api.raw.models.RawTodoCreation
 import software.medusa.demo.api.raw.models.RawTodoDoneUpdate
 import software.medusa.demo.api.raw.models.RawTodoListReply
+import software.medusa.demo.api.raw.models.RawWorkOverview
+import software.medusa.demo.api.raw.models.RawWorkRun
+import software.medusa.demo.api.raw.models.RawWorkRunStartedReply
 
 /**
  * Serde is locked down by default, so each externally-defined model is registered here rather than
@@ -25,6 +28,9 @@ import software.medusa.demo.api.raw.models.RawTodoListReply
 @SerdeImport(RawTodoCreation::class)
 @SerdeImport(RawTodoDoneUpdate::class)
 @SerdeImport(value = RawTodoListReply::class, mixin = AlwaysComplete::class)
+@SerdeImport(value = RawWorkOverview::class, mixin = AlwaysComplete::class)
+@SerdeImport(RawWorkRun::class)
+@SerdeImport(RawWorkRunStartedReply::class)
 class ServerSerdeConfig
 
 /**

@@ -1,0 +1,31 @@
+-- The table as it is now. Flyway's migrations are what build it in a real database; this is what the
+-- queries below are checked against, and the two have to agree.
+CREATE TABLE work_runs (
+    id          TEXT    PRIMARY KEY,
+    owner       TEXT    NOT NULL,
+    steps_total INTEGER NOT NULL,
+    steps_done  INTEGER NOT NULL,
+    result      TEXT,
+    ordinal     BIGINT  GENERATED ALWAYS AS IDENTITY
+);
+
+CREATE INDEX work_runs_by_owner ON work_runs (owner, ordinal);
+
+-- Reading and starting runs is on behalf of an owner. Recording what became of one is the worker's,
+-- which has no caller, so those name the run alone.
+
+listForOwner:
+SELECT id, steps_done, steps_total, result FROM work_runs WHERE owner = :owner ORDER BY ordinal;
+
+create:
+INSERT INTO work_runs (id, owner, steps_total, steps_done) VALUES (:id, :owner, :stepsTotal, 0);
+
+delete:
+DELETE FROM work_runs WHERE id = :id;
+
+-- Only ever forward: a step reported again, as a retried activity may, changes nothing.
+recordProgress:
+UPDATE work_runs SET steps_done = :stepsDone WHERE id = :id AND steps_done < :stepsDone;
+
+finish:
+UPDATE work_runs SET steps_done = steps_total, result = :result WHERE id = :id;

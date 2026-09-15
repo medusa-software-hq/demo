@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import software.medusa.demo.backend.stack.BackendStackStarter
 import software.medusa.demo.backend.stack.SharedDatabaseCluster
+import software.medusa.demo.backend.stack.SharedTemporalServer
 import software.medusa.demo.backend.stack.TestCaller
 
 /**
@@ -23,7 +24,8 @@ class NamedCallerTest {
 
   /** The status [path] answers a GET with, sent with [headers] and nothing else. */
   private fun statusOf(path: String, headers: Map<String, String>): Int =
-      BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+      BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+          stackHandle ->
         HttpClient.newHttpClient()
             .send(
                 HttpRequest.newBuilder(

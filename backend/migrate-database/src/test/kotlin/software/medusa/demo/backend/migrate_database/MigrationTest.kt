@@ -9,12 +9,16 @@ import software.medusa.demo.backend.storage.CounterStore
 import software.medusa.demo.backend.storage.Database
 import software.medusa.demo.backend.storage.PostgresCounterStore
 import software.medusa.demo.backend.storage.PostgresTodoStore
+import software.medusa.demo.backend.storage.PostgresWorkRunStore
 import software.medusa.demo.backend.storage.TodoStore
+import software.medusa.demo.backend.storage.WorkRunStore
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 import software.medusa.demo.core.Todo
 import software.medusa.demo.core.TodoId
 import software.medusa.demo.core.UserId
+import software.medusa.demo.core.WorkRun
+import software.medusa.demo.core.WorkRunId
 
 /**
  * Migrating databases that already hold data, judged by what the storage layer reads back.
@@ -76,10 +80,43 @@ class MigrationTest {
                     ),
                 ),
         )
+
+    /** The work runs `seed.sql` has held since version 3: whose they are, in the order inserted. */
+    val seededWorkRuns =
+        mapOf(
+            someone to
+                listOf(
+                    WorkRun(
+                        id = WorkRunId("4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80"),
+                        stepsDone = 6,
+                        stepsTotal = 6,
+                        result = "Did 6 steps; the answer is 42",
+                    ),
+                    WorkRun(
+                        id = WorkRunId("5e6f7a8b-9c0d-4e1f-8a2b-4c5d6e7f8091"),
+                        stepsDone = 3,
+                        stepsTotal = 6,
+                        result = null,
+                    ),
+                ),
+            someoneElse to
+                listOf(
+                    WorkRun(
+                        id = WorkRunId("6f7a8b9c-0d1e-4f2a-9b3c-5d6e7f809102"),
+                        stepsDone = 0,
+                        stepsTotal = 3,
+                        result = null,
+                    ),
+                ),
+        )
   }
 
   /** The stores a migrated database is read back through. */
-  private class Stores(val counters: CounterStore, val todos: TodoStore)
+  private class Stores(
+      val counters: CounterStore,
+      val todos: TodoStore,
+      val workRuns: WorkRunStore,
+  )
 
   /**
    * Restores the dump of a database at [version], migrates it the way `migrate-database` does, and
@@ -102,6 +139,7 @@ class MigrationTest {
           Stores(
                   counters = PostgresCounterStore(dataSource),
                   todos = PostgresTodoStore(dataSource),
+                  workRuns = PostgresWorkRunStore(dataSource),
               )
               .block()
         }
@@ -131,6 +169,19 @@ class MigrationTest {
     assertEquals(expected = todosBefore + todoId, actual = todos.listFor(someone).map { it.id })
 
     assertTrue(todos.setDone(owner = someone, todoId = todoId, done = true))
+
+    val runsBefore = workRuns.listFor(someone).map { it.id }
+    val runId = workRuns.create(owner = someone, stepsTotal = 2)
+
+    workRuns.recordProgress(runId = runId, stepsDone = 1)
+    workRuns.finish(runId = runId, result = "Finished after migrating")
+
+    assertEquals(
+        expected =
+            WorkRun(id = runId, stepsDone = 2, stepsTotal = 2, result = "Finished after migrating"),
+        actual = workRuns.listFor(someone).last(),
+    )
+    assertEquals(expected = runsBefore + runId, actual = workRuns.listFor(someone).map { it.id })
   }
 
   @Test
@@ -164,4 +215,33 @@ class MigrationTest {
   @Test
   fun `a database at version 2 keeps working after migrating`() =
       withMigratedStores(version = 2) { assertKeepsWorking() }
+
+  // Versions 1 and 2 had no work, so migrating from either is where it begins: none, for anybody.
+  @Test
+  fun `databases at versions 1 and 2 come out with no work runs for anybody`() {
+    for (version in 1..2) {
+      withMigratedStores(version = version) {
+        assertEquals(expected = emptyList(), actual = workRuns.listFor(someone))
+        assertEquals(expected = emptyList(), actual = workRuns.listFor(someoneElse))
+      }
+    }
+  }
+
+  @Test
+  fun `everything a database at version 3 held reads back after migrating`() =
+      withMigratedStores(version = 3) {
+        assertEquals(expected = seededCounters, actual = counters.listAll())
+
+        seededTodos.forEach { (owner, todosOfOwner) ->
+          assertEquals(expected = todosOfOwner, actual = todos.listFor(owner))
+        }
+
+        seededWorkRuns.forEach { (owner, runsOfOwner) ->
+          assertEquals(expected = runsOfOwner, actual = workRuns.listFor(owner))
+        }
+      }
+
+  @Test
+  fun `a database at version 3 keeps working after migrating`() =
+      withMigratedStores(version = 3) { assertKeepsWorking() }
 }

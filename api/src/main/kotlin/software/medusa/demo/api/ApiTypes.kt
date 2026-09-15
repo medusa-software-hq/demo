@@ -1,6 +1,8 @@
 package software.medusa.demo.api
 
 import software.medusa.demo.core.TodoId
+import software.medusa.demo.core.WorkRun
+import software.medusa.demo.core.WorkRunId
 
 /**
  * The answers each operation can give.
@@ -71,5 +73,17 @@ data object ApiTypes {
 
     /** The caller has no todo with that id. */
     data object NotFound : DeleteTodoResponse
+  }
+
+  /** Whether work can be started here, and the caller's own runs, oldest first. */
+  data class WorkOverview(val enabled: Boolean, val runs: List<WorkRun>)
+
+  /** What starting a run of work can come to. */
+  sealed interface StartWorkResponse {
+    /** The run is recorded, and on its way. */
+    data class Started(val runId: WorkRunId) : StartWorkResponse
+
+    /** This environment runs no work. Nothing was recorded or started. */
+    data object Disabled : StartWorkResponse
   }
 }

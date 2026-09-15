@@ -6,13 +6,15 @@ import kotlinx.coroutines.runBlocking
 import software.medusa.demo.api.ApiTypes
 import software.medusa.demo.backend.stack.BackendStackStarter
 import software.medusa.demo.backend.stack.SharedDatabaseCluster
+import software.medusa.demo.backend.stack.SharedTemporalServer
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 
 class CounterRoutesTest {
   @Test
   fun `a created counter starts at zero`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val counterId = assertApiCallSucceeds { apiClient.createCounter() }
 
@@ -25,7 +27,8 @@ class CounterRoutesTest {
 
   @Test
   fun `incrementing and decrementing move the counter, and the move sticks`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val counterId = assertApiCallSucceeds { apiClient.createCounter() }
 
@@ -55,7 +58,8 @@ class CounterRoutesTest {
 
   @Test
   fun `one counter moving leaves the others where they were`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val movedCounterId = assertApiCallSucceeds { apiClient.createCounter() }
       val untouchedCounterId = assertApiCallSucceeds { apiClient.createCounter() }
@@ -76,7 +80,8 @@ class CounterRoutesTest {
 
   @Test
   fun `listing answers the counters that were created, oldest first`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
 
       assertEquals(
@@ -103,7 +108,8 @@ class CounterRoutesTest {
 
   @Test
   fun `listing stops reporting a counter that was deleted`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val keptCounterId = assertApiCallSucceeds { apiClient.createCounter() }
       val doomedCounterId = assertApiCallSucceeds { apiClient.createCounter() }
@@ -119,7 +125,8 @@ class CounterRoutesTest {
 
   @Test
   fun `a deleted counter is gone`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val counterId = assertApiCallSucceeds { apiClient.createCounter() }
 
@@ -142,7 +149,8 @@ class CounterRoutesTest {
 
   @Test
   fun `an id no counter has is not quietly created by using it`() = runBlocking {
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       val apiClient = stackHandle.apiClientFor()
       val strangerCounterId = CounterId(value = "no-such-counter")
 
@@ -162,11 +170,13 @@ class CounterRoutesTest {
   @Test
   fun `a fresh stack has none of the counters the last one had`() = runBlocking {
     val counterId =
-        BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+        BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+            stackHandle ->
           assertApiCallSucceeds { stackHandle.apiClientFor().createCounter() }
         }
 
-    BackendStackStarter.start(SharedDatabaseCluster.shared).use { stackHandle ->
+    BackendStackStarter.start(SharedDatabaseCluster.shared, SharedTemporalServer.shared).use {
+        stackHandle ->
       assertEquals(
           expected = ApiTypes.GetCountResponse.NotFound,
           actual =
@@ -186,7 +196,7 @@ class CounterRoutesTest {
   fun `counters outlive the service that made them`() = runBlocking {
     SharedDatabaseCluster.shared.createDatabase().let { database ->
       val counterId =
-          BackendStackStarter.start(database).use { stackHandle ->
+          BackendStackStarter.start(database, SharedTemporalServer.shared).use { stackHandle ->
             val apiClient = stackHandle.apiClientFor()
             val createdCounterId = assertApiCallSucceeds { apiClient.createCounter() }
 
@@ -198,7 +208,7 @@ class CounterRoutesTest {
       // A second service on the same database is what a restart, a new revision and a cold start
       // after scaling to zero all look like from the database's side. It also migrates a database
       // that is already up to date, which has to do nothing.
-      BackendStackStarter.start(database).use { stackHandle ->
+      BackendStackStarter.start(database, SharedTemporalServer.shared).use { stackHandle ->
         assertEquals(
             expected = listOf(Counter(id = counterId, count = 1)),
             actual = assertApiCallSucceeds { stackHandle.apiClientFor().listCounters() },

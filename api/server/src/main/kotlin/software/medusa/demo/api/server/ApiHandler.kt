@@ -13,6 +13,10 @@ import software.medusa.demo.core.TodoId
  * rather than a status code. What that becomes on the wire is [ProperRawCounterController]'s
  * business, and an implementation of this never has to know.
  */
+// One function per operation in the contract, so its size is the contract's size: splitting it to
+// stay
+// under a count would only move the same operations somewhere a backend has to look for them.
+@Suppress("TooManyFunctions")
 interface ApiHandler {
   /**
    * Creates a counter.
@@ -56,4 +60,12 @@ interface ApiHandler {
   /** Deletes the caller's todo [todoId]. */
   context(caller: CallerInfo)
   suspend fun handleDeleteTodo(todoId: TodoId): ApiTypes.DeleteTodoResponse
+
+  /** Whether work can be started here, and the caller's own runs, oldest first. */
+  context(caller: CallerInfo)
+  suspend fun handleGetWork(): ApiTypes.WorkOverview
+
+  /** Starts a run of work for the caller. */
+  context(caller: CallerInfo)
+  suspend fun handleStartWork(): ApiTypes.StartWorkResponse
 }

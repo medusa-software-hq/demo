@@ -16,12 +16,15 @@ import software.medusa.demo.api.raw.client.ApiResponse
 import software.medusa.demo.api.raw.client.ApiServerException
 import software.medusa.demo.api.raw.client.RawCounterClient
 import software.medusa.demo.api.raw.client.RawTodoClient
+import software.medusa.demo.api.raw.client.RawWorkClient
 import software.medusa.demo.api.raw.models.RawTodoCreation
 import software.medusa.demo.api.raw.models.RawTodoDoneUpdate
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
 import software.medusa.demo.core.Todo
 import software.medusa.demo.core.TodoId
+import software.medusa.demo.core.WorkRun
+import software.medusa.demo.core.WorkRunId
 
 private val logger = LoggerFactory.getLogger(ApiClient::class.java)
 
@@ -35,6 +38,7 @@ private val logger = LoggerFactory.getLogger(ApiClient::class.java)
 class ApiClient(
     private val rawCounterClient: RawCounterClient,
     private val rawTodoClient: RawTodoClient,
+    private val rawWorkClient: RawWorkClient,
 ) {
   /**
    * The call was not answered.
@@ -85,6 +89,12 @@ class ApiClient(
               ),
           rawTodoClient =
               RawTodoClient(
+                  objectMapper = objectMapper,
+                  baseUrl = baseUrl,
+                  okHttpClient = okHttpClient,
+              ),
+          rawWorkClient =
+              RawWorkClient(
                   objectMapper = objectMapper,
                   baseUrl = baseUrl,
                   okHttpClient = okHttpClient,
@@ -323,6 +333,61 @@ class ApiClient(
           onClientError = { exception ->
             when (exception.statusCode) {
               HttpURLConnection.HTTP_NOT_FOUND -> ApiTypes.DeleteTodoResponse.NotFound
+
+              else -> null
+            }
+          },
+      )
+
+  /** Whether work can be started here, and the caller's own runs, oldest first. */
+  suspend fun getWork(): ApiTypes.WorkOverview =
+      callRaw(
+          operation = "getWork",
+          call = { rawWorkClient.getWork() },
+          onSuccess = { response ->
+            when (response.statusCode) {
+              HttpURLConnection.HTTP_OK ->
+                  response.requireData(operation = "getWork").let { overview ->
+                    ApiTypes.WorkOverview(
+                        enabled = overview.enabled,
+                        runs =
+                            overview.runs.map { rawRun ->
+                              WorkRun(
+                                  id = WorkRunId(value = rawRun.runId),
+                                  stepsDone = rawRun.stepsDone,
+                                  stepsTotal = rawRun.stepsTotal,
+                                  result = rawRun.result,
+                              )
+                            },
+                    )
+                  }
+
+              else -> null
+            }
+          },
+          // The contract gives this operation no 4xx at all.
+          onClientError = { null },
+      )
+
+  /** Starts a run of work for the caller. */
+  suspend fun startWork(): ApiTypes.StartWorkResponse =
+      callRaw(
+          operation = "startWork",
+          call = { rawWorkClient.startWork() },
+          onSuccess = { response ->
+            when (response.statusCode) {
+              HttpURLConnection.HTTP_OK ->
+                  ApiTypes.StartWorkResponse.Started(
+                      runId =
+                          WorkRunId(value = response.requireData(operation = "startWork").runId),
+                  )
+
+              else -> null
+            }
+          },
+          onClientError = { exception ->
+            when (exception.statusCode) {
+              HttpURLConnection.HTTP_CONFLICT -> ApiTypes.StartWorkResponse.Disabled
 
               else -> null
             }

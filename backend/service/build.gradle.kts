@@ -12,6 +12,8 @@ plugins {
 dependencies {
   implementation(project(":backend"))
   implementation(project(":backend:storage"))
+  // `api`: the Service is started with a `WorkAvailability`.
+  api(project(":backend:work"))
   // `api`: the handler is written in these.
   api(project(":core"))
   api(project(":api:server"))
