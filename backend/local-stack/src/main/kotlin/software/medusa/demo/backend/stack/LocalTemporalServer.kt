@@ -21,6 +21,9 @@ class LocalTemporalServer
 private constructor(
     private val process: Process,
 
+    /** What stops [process] if this JVM ends before [close] does. */
+    private val stopOnExit: Thread,
+
     /** The port clients and workers connect to. */
     val port: Int,
 
@@ -88,8 +91,21 @@ private constructor(
               .redirectOutput(ProcessBuilder.Redirect.appendTo(log))
               .start()
 
+      // The server is a separate process, and outlives this JVM unless something stops it. `close`
+      // does, but not on the way every JVM ends: a run stopped from the terminal or the IDE never
+      // leaves the `use` blocks that would call it, and an orphaned server holds its ports until
+      // somebody finds it.
+      val stopOnExit = Thread { process.destroy() }
+
+      Runtime.getRuntime().addShutdownHook(stopOnExit)
+
       val server =
-          LocalTemporalServer(process, port = ports.port, uiPort = ports.uiPort.takeIf { withUi })
+          LocalTemporalServer(
+              process,
+              stopOnExit = stopOnExit,
+              port = ports.port,
+              uiPort = ports.uiPort.takeIf { withUi },
+          )
 
       runCatching { server.awaitReady(log) }.onFailure { server.close() }.getOrThrow()
 
@@ -144,6 +160,10 @@ private constructor(
   }
 
   override fun close() {
+    // Stopped here instead, so not again at exit. Refused once the JVM is already on its way out,
+    // which is when the hook is running anyway.
+    runCatching { Runtime.getRuntime().removeShutdownHook(stopOnExit) }
+
     process.destroy()
 
     if (!process.waitFor(stopTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
