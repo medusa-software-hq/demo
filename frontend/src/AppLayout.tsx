@@ -10,6 +10,7 @@ import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 const TABS = [
   { to: '/counters', label: 'Counters' },
   { to: '/todos', label: 'My todos' },
+  { to: '/work', label: 'Work' },
 ] as const;
 
 /** What every page is shown inside: the app's name, its environment, and the tabs between pages. */
