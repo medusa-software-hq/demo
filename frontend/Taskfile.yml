@@ -21,10 +21,10 @@ tasks:
       - npm ci
 
   client:
-    desc: Install and generate the client package this app is built against
-    # `demo-client` lives next door and is linked into this package, but the half of it that is
-    # generated from the contract is not committed — so installing here leaves an empty shell
-    # until this has run. Its own Taskfile does the same two things; this is how the app's tasks
+    desc: Generate the wire client this app is built against
+    # `demo-client` lives next door and is linked into this package by `install`, but the half of
+    # it that is generated from the contract is not committed — and linking cannot produce what
+    # was never there. Its own Taskfile does the same two things; this is how the app's tasks
     # reach them, since a task cannot depend on one in another include.
     run: once
     dir: ../api/client

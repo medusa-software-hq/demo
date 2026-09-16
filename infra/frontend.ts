@@ -18,8 +18,9 @@ const PACKAGE = '../frontend';
 /**
  * The client the app calls the service through, which is a package of its own next door.
  *
- * Half of it is generated from the contract and is not committed, and installing the app only
- * links the package rather than filling it in — so this is built before the app that imports it.
+ * Half of it is generated from the contract and is not committed, and installing the app links
+ * the package without filling that half in — so it is generated here, before the app that
+ * imports it is built.
  */
 const CLIENT_PACKAGE = '../api/client';
 
@@ -30,7 +31,8 @@ const npm = (packageDirectory: string, ...args: readonly string[]): void => {
 /** Builds the app and says where it landed. */
 export const buildFrontend = (): string => {
   // The deployment runner installs the dependencies of the Pulumi project and no
-  // others, so on a runner there is nothing in this package to build with. `ci` rather
+  // others, so on a runner there is nothing in either of these packages to build
+  // with. `ci` rather
   // than `install` for the usual reason — it takes the lockfile as the answer instead
   // of as a starting point — which on a workstation costs a reinstall of a directory
   // that was probably already correct. That is the cheaper of the two mistakes.

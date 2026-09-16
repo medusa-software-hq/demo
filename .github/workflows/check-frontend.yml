@@ -27,13 +27,14 @@ jobs:
           node-version-file: frontend/.nvmrc
 
       # The app imports `demo-client` from next door, and half of that package is generated
-      # from the contract rather than committed. Installing the app only links it, so it is
-      # built first — `tsc` and `vite` both follow imports rather than the gitignore.
-      - name: Install the client
+      # from the contract rather than committed. Installing the app links that package but
+      # cannot fill in the missing half, so it is generated first — `tsc` and `vite` both
+      # follow imports rather than the gitignore.
+      - name: Install the client's dependencies
         working-directory: api/client
         run: npm ci
 
-      - name: Generate the client
+      - name: Generate the wire client
         working-directory: api/client
         run: npm run generate
 
