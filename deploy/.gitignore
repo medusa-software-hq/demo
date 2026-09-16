@@ -1,0 +1,8 @@
+# Dependencies
+node_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Task cache
+.task/
