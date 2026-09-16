@@ -1,12 +1,8 @@
 import { Alert, Badge, Button, Card, Group, Loader, Progress, Stack, Text } from '@mantine/core';
+import { DemoWorkResponseKinds, type DemoApiErrorKind, type DemoWorkOverview } from 'demo-client';
 import { useCallback, useEffect, useState } from 'react';
 import { catchingApiError, demoApiClient, describeApiError } from './apiCalls.ts';
 import { assertNever } from './assertNever.ts';
-import {
-  DemoWorkResponseKinds,
-  type DemoApiErrorKind,
-  type DemoWorkOverview,
-} from './DemoApiClient.ts';
 
 /** How often a page with a run still going asks how far it has got. */
 const pollIntervalMillis = 1000;

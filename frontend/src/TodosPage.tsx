@@ -9,10 +9,10 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
+import { DemoTodoResponseKinds, type DemoApiErrorKind, type DemoTodo } from 'demo-client';
 import { useCallback, useEffect, useState } from 'react';
 import { catchingApiError, demoApiClient, describeApiError } from './apiCalls.ts';
 import { assertNever } from './assertNever.ts';
-import { DemoTodoResponseKinds, type DemoApiErrorKind, type DemoTodo } from './DemoApiClient.ts';
 
 /**
  * The todos of whoever is signed in.

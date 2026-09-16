@@ -4,20 +4,17 @@
   "type": "module",
   "version": "0.0.0",
   "scripts": {
-    "api": "openapi-ts -i ../api/openapi/demo.yaml -o src/gen && node scripts/exempt-generated.mjs",
-    "prebuild": "npm run api",
     "build": "vite build"
   },
   "dependencies": {
     "@mantine/core": "9.5.2",
     "@mantine/hooks": "9.5.2",
     "@tanstack/react-router": "^1.170.36",
-    "http-status-codes": "^2.3.0",
+    "demo-client": "file:../api/client",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "^0.99.0",
     "@tsconfig/strictest": "^2.0.8",
     "@types/node": "^22.20.2",
     "@types/react": "^19.2.14",

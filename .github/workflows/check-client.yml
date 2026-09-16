@@ -1,0 +1,46 @@
+name: Check client
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NO_COLOR: 1
+
+jobs:
+  check-client:
+    name: Check client source
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: api/client
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: api/client/.nvmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate the wire client
+        # Not committed, and everything below reads it: `tsc` follows imports rather than the
+        # gitignore. The command lives in `package.json`, so this, the Taskfile, the frontend's
+        # own checks and the deployment all run the same one.
+        run: npm run generate
+
+      - name: Run `oxfmt`
+        run: npx --no-install oxfmt --check "**/*.ts"
+
+      - name: Run `oxlint`
+        # `--type-aware` is where the rules that need the type checker live.
+        run: npx --no-install oxlint --type-aware
+
+      - name: Run `tsc`
+        run: npx --no-install tsc --noEmit

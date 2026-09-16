@@ -20,39 +20,35 @@ tasks:
       # `ci` installs strictly from the lockfile
       - npm ci
 
-  client:
-    desc: Generate the wire client this app is built against
-    # `demo-client` lives next door and is linked into this package by `install`, but the half of
-    # it that is generated from the contract is not committed — and linking cannot produce what
-    # was never there. Its own Taskfile does the same two things; this is how the app's tasks
-    # reach them, since a task cannot depend on one in another include.
+  generate:
+    desc: Generate the wire client from the OpenAPI contract
+    deps: [install]
     run: once
-    dir: ../api/client
     sources:
-      - package.json
-      - package-lock.json
       - ../openapi/demo.yaml
     generates:
       - src/gen/sdk.gen.ts
     cmds:
-      - npm ci
+      # Defined in `package.json`, not here, because whatever builds this package has to generate
+      # too: the frontend's CI and the Pulumi program both call npm directly and never go through
+      # Task.
       - npm run generate
 
   checkFormatting:
     desc: Check package formatting
     deps: [install]
     cmds:
-      - npx --no-install oxfmt --check "**/*.{ts,tsx,css}"
+      - npx --no-install oxfmt --check "**/*.ts"
 
   fixFormatting:
     desc: Fix package formatting
     deps: [install]
     cmds:
-      - npx --no-install oxfmt --write "**/*.{ts,tsx,css}"
+      - npx --no-install oxfmt --write "**/*.ts"
 
   lint:
     desc: Lint the package
-    deps: [install, client]
+    deps: [install, generate]
     cmds:
       # `--type-aware` is where the rules that need the type checker live, and they are the ones
       # that catch conditions which cannot be false.
@@ -60,34 +56,17 @@ tasks:
 
   fixLint:
     desc: Fix lint issues in the package
-    deps: [install, client]
+    deps: [install, generate]
     cmds:
       - npx --no-install oxlint --type-aware --fix
 
   typecheck:
     desc: Type check the package
-    deps: [install, client]
+    deps: [install, generate]
     cmds:
-      # Two programs, checked separately: the app runs in a browser and the build
-      # configuration runs in Node, and neither one's globals should be visible to the
-      # other.
-      - npx --no-install tsc --noEmit -p tsconfig.app.json
-      - npx --no-install tsc --noEmit -p tsconfig.node.json
-
-  build:
-    desc: Build the app
-    deps: [install, client]
-    cmds:
-      - npm run build
-
-  dev:
-    desc: Serve the app with hot reloading
-    deps: [install, client]
-    interactive: true
-    cmds:
-      - npx --no-install vite
+      - npx --no-install tsc --noEmit
 
   clean:
-    desc: Remove build artifacts
+    desc: Remove generated artifacts
     cmds:
-      - rm -rf dist
+      - rm -rf src/gen
