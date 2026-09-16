@@ -142,9 +142,27 @@ type RawResult<DataT> = {
   response?: Response | undefined;
 };
 
+/** How a client is set up, beyond where the API is. */
+export interface DemoApiClientOptions {
+  /**
+   * Sent with every request, besides whatever an operation sends of its own.
+   *
+   * For whatever stands between the client and the API and needs telling who is calling. A page
+   * needs none: its browser carries the sign-in by itself.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
 /** A client for the API at [baseUrl]. */
-export function createDemoApiClient(baseUrl: string): DemoApiClient {
-  const httpClient = createClient(createConfig({ baseUrl }));
+export function createDemoApiClient(
+  baseUrl: string,
+  options: DemoApiClientOptions = {},
+): DemoApiClient {
+  const httpClient = createClient(
+    createConfig(
+      options.headers === undefined ? { baseUrl } : { baseUrl, headers: { ...options.headers } },
+    ),
+  );
 
   /**
    * Wraps a call to the generated client.

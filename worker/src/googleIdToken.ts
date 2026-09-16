@@ -14,7 +14,14 @@ import { importPKCS8, SignJWT } from 'jose';
  * padding left on. Those produce a signature Google rejects, and no clue as to why.
  */
 
-const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+/**
+ * Where assertions are exchanged, for a key that does not say.
+ *
+ * Every key Google issues does say, as `token_uri`, and Google's own client libraries go where it
+ * points rather than where they would have guessed. So does this — which is also what lets
+ * something other than Google play the token endpoint's part, with nothing here knowing.
+ */
+const DEFAULT_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const JWT_BEARER_GRANT = 'urn:ietf:params:oauth:grant-type:jwt-bearer';
 
 /** What Google issues service account keys for, and so what the assertion is signed with. */
@@ -30,6 +37,7 @@ const REFRESH_MARGIN_SECONDS = 300;
 export interface ServiceAccountKey {
   readonly client_email: string;
   readonly private_key: string;
+  readonly token_uri?: string;
 }
 
 /** A minted token, and when it stops being worth reusing. */
@@ -47,8 +55,11 @@ interface CachedToken {
 export class GoogleIdTokenMinter {
   private readonly cache = new Map<string, CachedToken>();
   private readonly signingKey: Promise<CryptoKey>;
+  private readonly tokenEndpoint: string;
 
   constructor(private readonly key: ServiceAccountKey) {
+    this.tokenEndpoint = key.token_uri ?? DEFAULT_TOKEN_ENDPOINT;
+
     // Imported once and awaited per call: parsing the key on every request would be
     // work repeated for nothing, and one isolate may serve very many.
     this.signingKey = importPKCS8(key.private_key, SIGNING_ALGORITHM);
@@ -76,7 +87,7 @@ export class GoogleIdTokenMinter {
   private async mint(audience: string, nowSeconds: number): Promise<string> {
     const assertion = await this.signAssertion(audience, nowSeconds);
 
-    const response = await fetch(TOKEN_ENDPOINT, {
+    const response = await fetch(this.tokenEndpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: JWT_BEARER_GRANT, assertion }),
@@ -106,7 +117,7 @@ export class GoogleIdTokenMinter {
    * The signed JWT that is exchanged for an ID token.
    *
    * Two audiences, which is the part worth reading twice: `aud` is who the assertion
-   * is presented to — Google's token endpoint — while `target_audience` is what the
+   * is presented to — the token endpoint — while `target_audience` is what the
    * token it buys will be for. Cloud Run checks the second against itself.
    */
   private async signAssertion(audience: string, nowSeconds: number): Promise<string> {
@@ -114,7 +125,7 @@ export class GoogleIdTokenMinter {
       .setProtectedHeader({ alg: SIGNING_ALGORITHM, typ: 'JWT' })
       .setIssuer(this.key.client_email)
       .setSubject(this.key.client_email)
-      .setAudience(TOKEN_ENDPOINT)
+      .setAudience(this.tokenEndpoint)
       .setIssuedAt(nowSeconds)
       .setExpirationTime(nowSeconds + ASSERTION_LIFETIME_SECONDS)
       .sign(await this.signingKey);

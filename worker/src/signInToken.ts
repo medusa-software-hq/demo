@@ -38,19 +38,64 @@ const TOKEN_FAULTS: ReadonlySet<string> = new Set([
   errors.JWTClaimValidationFailed.code,
 ]);
 
-/** Who signed in. Everything else the token says about them is not ours to keep. */
-export interface SignedInUser {
+/**
+ * Who a token names as calling. Everything else it says is not ours to keep.
+ *
+ * A person or a service: the login in front of this Worker admits both, and which of them may
+ * reach an app is decided there, application by application. Once admitted, either is a caller
+ * like any other, and nothing past this point tells them apart.
+ */
+export interface Caller {
   /**
-   * The issuer's id for this person.
+   * The issuer's id for this caller.
    *
    * Unique, and not permanent: Cloudflare Access issues a new one to somebody removed and
-   * added back. Good for telling two people apart; not for storing anything against.
+   * added back. Good for telling two callers apart; not for storing anything against.
    */
   readonly subject: string;
 
-  /** Their address, as the identity provider verified it. */
+  /**
+   * An address, as the identity provider verified it — what a caller's data is kept against.
+   *
+   * A service has none, so it is given one under {@link SERVICE_TOKEN_DOMAIN}.
+   */
   readonly email: string;
 }
+
+/**
+ * Where a service's address is made up.
+ *
+ * `.invalid` is reserved never to resolve (RFC 2606), so an address here cannot be anybody's real
+ * one, cannot collide with a person the identity provider knows, and cannot receive mail.
+ */
+const SERVICE_TOKEN_DOMAIN = 'service-token.invalid';
+
+/**
+ * Who [claims] name: a person by their id and address, or a service by its token's client id.
+ *
+ * Access marks a token it issued to a service by leaving `sub` empty and putting the service
+ * token's client id in `common_name` — which, unlike a person's `sub`, stays the same when the
+ * token's secret is rotated, so it is fit to keep data against. Anything else — neither shape, or
+ * pieces of both — names nobody.
+ */
+const callerNamedBy = (claims: JWTPayload): Caller | null => {
+  const { sub } = claims;
+  const email = claims['email'];
+  const commonName = claims['common_name'];
+
+  if (typeof sub === 'string' && sub !== '' && typeof email === 'string' && email !== '') {
+    return { subject: sub, email };
+  }
+
+  if (sub === '' && email === undefined && typeof commonName === 'string' && commonName !== '') {
+    return {
+      subject: `service-token:${commonName}`,
+      email: `${commonName}@${SERVICE_TOKEN_DOMAIN}`,
+    };
+  }
+
+  return null;
+};
 
 /**
  * Accepts tokens from one issuer, meant for one audience.
@@ -82,22 +127,21 @@ export class SignInTokenVerifier {
    * knowing to us and worth nothing to whoever presented it. That is what the logging is
    * for — the reason is written down at the point where it stops being carried.
    */
-  async verify(token: string): Promise<SignedInUser | null> {
+  async verify(token: string): Promise<Caller | null> {
     const claims = await this.verifiedClaims(token);
 
     if (claims === null) {
       return null;
     }
 
-    // A token that names nobody — one issued to a service rather than a person — says
-    // that something was let in, and not who.
-    if (typeof claims.sub !== 'string' || typeof claims['email'] !== 'string') {
-      console.warn('rejecting a token: no subject or no address');
+    const caller = callerNamedBy(claims);
 
-      return null;
+    // Signed, and still saying nothing about who: something was let in, and not who.
+    if (caller === null) {
+      console.warn('rejecting a token: it names neither a person nor a service');
     }
 
-    return { subject: claims.sub, email: claims['email'] };
+    return caller;
   }
 
   /** What [token] says, if the issuer said it, to this audience, and recently; `null` otherwise. */

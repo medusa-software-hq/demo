@@ -1,0 +1,78 @@
+import type { OxlintConfig } from 'oxlint';
+
+export default {
+  plugins: ['typescript'],
+
+  ignorePatterns: ['**/*.{mjs,cjs,js,d.ts,d.mts}'],
+
+  overrides: [
+    {
+      // `node:test` hands back a promise from `describe` and `it` that the runner itself waits
+      // on. Nothing is left floating, and awaiting them at the top level would change nothing.
+      // The suites register tests the same way the entry point does.
+      files: ['**/*.test.ts', 'src/suites/**/*.ts'],
+      rules: { 'typescript/no-floating-promises': 'off' },
+    },
+  ],
+
+  rules: {
+    'array-callback-return': 'error',
+    'no-duplicate-imports': 'error',
+    'no-var': 'error',
+    'no-self-compare': 'error',
+    'no-template-curly-in-string': 'error',
+    curly: 'error',
+    'default-case': 'off',
+    'default-case-last': 'error',
+    'no-alert': 'error',
+    'no-eval': 'error',
+    'no-lonely-if': 'error',
+    'no-multi-assign': 'error',
+    'no-multi-str': 'error',
+    'no-param-reassign': 'error',
+    'no-return-assign': 'error',
+    'no-script-url': 'error',
+    'no-sequences': 'error',
+    'no-throw-literal': 'error',
+    'no-unneeded-ternary': 'error',
+    'no-useless-call': 'error',
+    'no-useless-constructor': 'error',
+    'no-useless-return': 'error',
+    'operator-assignment': 'error',
+    'prefer-const': 'error',
+    'prefer-exponentiation-operator': 'error',
+    'prefer-object-has-own': 'error',
+    'prefer-object-spread': 'error',
+    'prefer-promise-reject-errors': 'error',
+    'prefer-template': 'error',
+    radix: 'error',
+    yoda: 'error',
+    eqeqeq: ['error', 'smart'],
+    'no-empty': 'off',
+    'no-loop-func': 'off',
+    'no-redeclare': 'off',
+    'no-undef': 'off',
+    'no-unused-expressions': 'off',
+    'no-use-before-define': 'off',
+
+    'typescript/ban-ts-comment': 'off',
+    'typescript/consistent-generic-constructors': 'error',
+    'typescript/no-unnecessary-condition': 'error',
+    'typescript/no-deprecated': 'warn',
+    'typescript/no-empty-object-type': 'off',
+    'typescript/no-explicit-any': 'off',
+    'typescript/no-namespace': 'off',
+    'typescript/no-unsafe-function-type': 'off',
+    'no-unused-vars': [
+      'error',
+      {
+        args: 'all',
+        argsIgnorePattern: '^_',
+        caughtErrors: 'none',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+        ignoreRestSiblings: true,
+      },
+    ],
+  },
+} satisfies OxlintConfig;

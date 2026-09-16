@@ -110,10 +110,51 @@ describe('SignInTokenVerifier', () => {
     assert.equal(await verifier.verify(await mintToken(claims)), null);
   });
 
-  it('rejects a token that names nobody, as a service token does', async () => {
+  // What Access issues for a service token: an empty subject, no address, and the token's client
+  // id in `common_name`.
+  it('accepts a service token, naming it by its client id', async () => {
+    const { email: _, ...claims } = validClaims();
+
+    assert.deepEqual(
+      await verifier.verify(
+        await mintToken({
+          ...claims,
+          sub: '',
+          common_name: 'e367826f93b8d71185e03fe518aff3b4.access',
+        }),
+      ),
+      {
+        subject: 'service-token:e367826f93b8d71185e03fe518aff3b4.access',
+        email: 'e367826f93b8d71185e03fe518aff3b4.access@service-token.invalid',
+      },
+    );
+  });
+
+  it('rejects a token that names nobody', async () => {
     const { email: _, ...claims } = validClaims();
 
     assert.equal(await verifier.verify(await mintToken({ ...claims, sub: '' })), null);
+  });
+
+  it('rejects a person with no address', async () => {
+    const { email: _, ...claims } = validClaims();
+
+    assert.equal(await verifier.verify(await mintToken(claims)), null);
+  });
+
+  // A service's shape, with a person's address added: the made-up address must not be steerable
+  // into a real one, and a real one must not be claimed by something with no subject.
+  it('rejects a token that is partly a person and partly a service', async () => {
+    assert.equal(
+      await verifier.verify(
+        await mintToken({
+          ...validClaims(),
+          sub: '',
+          common_name: 'e367826f93b8d71185e03fe518aff3b4.access',
+        }),
+      ),
+      null,
+    );
   });
 
   // The one that matters most: everything above could be checked by reading the token, and

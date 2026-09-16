@@ -31,6 +31,7 @@ tasks:
     sources:
       - package.json
       - package-lock.json
+      - openapi-ts.config.ts
       - ../openapi/demo.yaml
     generates:
       - src/gen/sdk.gen.ts

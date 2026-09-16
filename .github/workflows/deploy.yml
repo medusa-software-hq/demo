@@ -91,7 +91,7 @@ jobs:
           service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
 
       # And the token the smoke test presents to the sign-in in front of every app, which
-      # admits it to the page and its files and to nothing that needs a person.
+      # admits it as a service rather than as a person.
       - name: Read the Pulumi token and the smoke test's token
         id: token
         uses: google-github-actions/get-secretmanager-secrets@v3.0.0

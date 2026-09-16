@@ -20,20 +20,43 @@ tasks:
       # `ci` installs strictly from the lockfile
       - npm ci
 
-  generate:
-    desc: Generate the wire client from the OpenAPI contract
-    deps: [install]
+  client:
+    desc: Generate the wire client the tests call the API through
+    # `demo-client` is linked in from next door, and its generated half is not committed —
+    # linking cannot produce what was never there.
     run: once
+    dir: ../api/client
     sources:
+      - package.json
+      - package-lock.json
       - openapi-ts.config.ts
       - ../openapi/demo.yaml
     generates:
       - src/gen/sdk.gen.ts
     cmds:
-      # Defined in `package.json`, not here, because whatever builds this package has to generate
-      # too: the frontend's CI and the Pulumi program both call npm directly and never go through
-      # Task.
+      - npm ci
       - npm run generate
+
+  worker:
+    desc: Install what the Worker is bundled with
+    # The Worker is bundled from its own sources, which resolve their dependencies from their
+    # own directory rather than from this one.
+    run: once
+    dir: ../worker
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+    cmds:
+      - npm ci
+
+  stack:
+    desc: Build the local stack the tests start, and the Temporal CLI it runs
+    run: once
+    dir: ..
+    cmds:
+      - ./gradlew :backend:local-stack:installDist :backend:local-stack:installTemporalCli --console=plain
 
   checkFormatting:
     desc: Check package formatting
@@ -49,7 +72,7 @@ tasks:
 
   lint:
     desc: Lint the package
-    deps: [install, generate]
+    deps: [install, client]
     cmds:
       # `--type-aware` is where the rules that need the type checker live, and they are the ones
       # that catch conditions which cannot be false.
@@ -57,17 +80,29 @@ tasks:
 
   fixLint:
     desc: Fix lint issues in the package
-    deps: [install, generate]
+    deps: [install, client]
     cmds:
       - npx --no-install oxlint --type-aware --fix
 
   typecheck:
     desc: Type check the package
-    deps: [install, generate]
+    deps: [install, client]
     cmds:
       - npx --no-install tsc --noEmit
 
-  clean:
-    desc: Remove generated artifacts
+  test:
+    desc: Test the system, on a stack started here
+    deps: [install, client, worker, stack]
     cmds:
-      - rm -rf src/gen
+      # Defined in `package.json`, so this and CI run the same command.
+      - npm test
+
+  testStaging:
+    desc: Test the deployed staging environment
+    deps: [install, client]
+    requires:
+      vars: [SYSTEM_TESTS_SERVICE_TOKENS]
+    env:
+      SYSTEM_TESTS_ORIGIN: https://demo-staging.medusa.software
+    cmds:
+      - npm test

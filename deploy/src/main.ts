@@ -43,8 +43,7 @@ const hostnames = JSON.parse(requireEnvironment('DEPLOY_HOSTNAMES')) as Readonly
 
 /**
  * What gets the smoke test past the sign-in in front of every app: a service token, which the
- * login admits to the page and its files, and which names nobody, so nothing behind them that
- * needs a person will answer it.
+ * login admits as a service rather than as a person. The page and its files are all it asks for.
  */
 const smokeTestToken = JSON.parse(requireEnvironment('SMOKE_TEST_ACCESS_TOKEN')) as {
   readonly clientId: string;
