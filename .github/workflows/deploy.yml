@@ -18,12 +18,29 @@ on:
 
   workflow_dispatch:
 
-# What the called workflow needs, granted here because a called workflow can hold no
-# more than its caller does. `id-token` is how it federates into Google Cloud to read
-# the Pulumi credential; nothing here ever sees that credential.
+# `id-token` is how the deploy job federates into Google Cloud to read the Pulumi
+# credential. Nothing here ever sees that credential in this repository's settings:
+# it is read at run time, from a secret only the federated identity may open.
 permissions:
   contents: read
   id-token: write
+
+env:
+  NO_COLOR: 1
+
+# One sequence at a time.
+#
+# Keyed on the repository rather than the ref or the commit: keyed on either of those
+# it would be no lock at all, and this lock is what keeps "production deploys what
+# staging just served" true when two merges land close together. A third run replaces
+# the one waiting, which is right — the newest commit contains the one it replaces.
+#
+# Never cancelling in progress, because this job does not do the work. Cancelling it
+# would abandon a running deployment rather than stop it, and lose the only thing
+# watching how it ends.
+concurrency:
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   # Before anything is deployed, because what gets deployed is this.
@@ -40,14 +57,64 @@ jobs:
   deploy:
     name: Deploy
     needs: image
-    # The steps live in the platform repository, not here.
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: deploy
+
+    # These steps are here, and have to be here.
     #
-    # They hold a Pulumi credential that carries the whole account, so what happens to
-    # it must not be this repository's to change. The identity that reads it is issued
-    # only to this workflow file at this ref — `job_workflow_ref` names the *called*
-    # workflow — so copying these steps into this repository would produce an
-    # assertion Google Cloud refuses.
+    # The identity that reads the Pulumi credential is issued against
+    # `job_workflow_ref`, which names the workflow that *defines* the running job. The
+    # platform stack builds the expected value from the repository that asked, so it is
+    # this file at this path on this branch — and a job that delegated to another
+    # workflow of this repository's own would assert that one's path and be refused.
     #
-    # Which app is deployed is not passed in. It comes from the repository that
-    # called, so asking can only ever deploy this one.
-    uses: medusa-software-hq/platform/.github/workflows/deploy.yml@main
+    # What the steps do is this repository's business now, which is the point of them
+    # being here. What that costs is equally plain: a workflow that can run these can
+    # use the Pulumi credential for whatever it permits.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: deploy/.nvmrc
+
+      # Federated, not stored. The assertion has to satisfy a condition naming this
+      # workflow file at this ref, so a token minted for anything else is refused.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.DEPLOY_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+
+      # And the token the smoke test presents to the sign-in in front of every app, which
+      # admits it to the page and its files and to nothing that needs a person.
+      - name: Read the Pulumi token and the smoke test's token
+        id: token
+        uses: google-github-actions/get-secretmanager-secrets@v3.0.0
+        with:
+          secrets: |-
+            pulumi:${{ vars.DEPLOY_TOKEN_SECRET }}
+            smokeTest:${{ vars.DEPLOY_SMOKE_TEST_SECRET }}
+
+      # The remote automation API drives the Pulumi CLI rather than the REST API, so
+      # the binary has to be here even though none of the work happens here.
+      - name: Install Pulumi
+        uses: pulumi/actions@v7.0.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Which environments, in what order, and where each answers are not this
+      # repository's to decide — they come from the stack that creates them.
+      - name: Deploy every environment, in order
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ steps.token.outputs.pulumi }}
+          PULUMI_ORGANIZATION: ${{ vars.PULUMI_ORGANIZATION }}
+          SMOKE_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.smokeTest }}
+          DEPLOY_ENVIRONMENTS: ${{ vars.DEPLOY_ENVIRONMENTS }}
+          DEPLOY_HOSTNAMES: ${{ vars.DEPLOY_HOSTNAMES }}
+        run: node src/main.ts

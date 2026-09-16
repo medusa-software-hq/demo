@@ -13,6 +13,10 @@ includes:
     taskfile: api/client/Taskfile.yml
     dir: api/client
 
+  deploy:
+    taskfile: deploy/Taskfile.yml
+    dir: deploy
+
   frontend:
     taskfile: frontend/Taskfile.yml
     dir: frontend
@@ -33,6 +37,8 @@ tasks:
       - gradleRoot:fixFormatting
       - client:fixFormatting
       - client:fixLint
+      - deploy:fixFormatting
+      - deploy:fixLint
       - frontend:fixFormatting
       - frontend:fixLint
       - infra:fixFormatting
