@@ -26,17 +26,19 @@ jobs:
         with:
           node-version-file: frontend/.nvmrc
 
-      - name: Install dependencies
+      # The app imports `demo-client` from next door, and half of that package is generated
+      # from the contract rather than committed. Installing the app only links it, so it is
+      # built first — `tsc` and `vite` both follow imports rather than the gitignore.
+      - name: Install the client
+        working-directory: api/client
         run: npm ci
 
-      - name: Generate the API client
-        # `tsc` follows imports rather than the gitignore, so the generated client has to be
-        # there before anything type-checks — the Taskfile's dependency does not help here,
-        # because these steps call the tools directly and never go through Task.
-        #
-        # The command lives in `package.json`, so this, the Taskfile and the deployment's
-        # `npm run build` all run the same one.
+      - name: Generate the client
+        working-directory: api/client
         run: npm run api
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run `oxfmt`
         run: npx --no-install oxfmt --check "**/*.{ts,tsx,css}"

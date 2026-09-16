@@ -15,8 +15,16 @@ import { execFileSync } from 'node:child_process';
 /** Relative to the Pulumi project, which is `infra`. */
 const PACKAGE = '../frontend';
 
-const npm = (...args: readonly string[]): void => {
-  execFileSync('npm', args, { cwd: PACKAGE, stdio: 'inherit' });
+/**
+ * The client the app calls the service through, which is a package of its own next door.
+ *
+ * Half of it is generated from the contract and is not committed, and installing the app only
+ * links the package rather than filling it in — so this is built before the app that imports it.
+ */
+const CLIENT_PACKAGE = '../api/client';
+
+const npm = (packageDirectory: string, ...args: readonly string[]): void => {
+  execFileSync('npm', args, { cwd: packageDirectory, stdio: 'inherit' });
 };
 
 /** Builds the app and says where it landed. */
@@ -26,8 +34,11 @@ export const buildFrontend = (): string => {
   // than `install` for the usual reason — it takes the lockfile as the answer instead
   // of as a starting point — which on a workstation costs a reinstall of a directory
   // that was probably already correct. That is the cheaper of the two mistakes.
-  npm('ci');
-  npm('run', 'build');
+  npm(CLIENT_PACKAGE, 'ci');
+  npm(CLIENT_PACKAGE, 'run', 'api');
+
+  npm(PACKAGE, 'ci');
+  npm(PACKAGE, 'run', 'build');
 
   return `${PACKAGE}/dist`;
 };

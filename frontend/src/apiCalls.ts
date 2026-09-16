@@ -1,11 +1,11 @@
-import { assertNever } from './assertNever.ts';
 import {
   createDemoApiClient,
   DemoApiError,
   DemoApiErrorKinds,
   type DemoApiClient,
   type DemoApiErrorKind,
-} from './DemoApiClient.ts';
+} from 'demo-client';
+import { assertNever } from './assertNever.ts';
 
 /**
  * The service, on this page's own origin.

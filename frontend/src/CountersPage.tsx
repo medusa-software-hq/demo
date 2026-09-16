@@ -1,12 +1,8 @@
 import { Alert, Button, Card, Group, Loader, Stack, Text } from '@mantine/core';
+import { DemoCounterResponseKinds, type DemoApiErrorKind, type DemoCounter } from 'demo-client';
 import { useCallback, useEffect, useState } from 'react';
 import { catchingApiError, demoApiClient, describeApiError } from './apiCalls.ts';
 import { assertNever } from './assertNever.ts';
-import {
-  DemoCounterResponseKinds,
-  type DemoApiErrorKind,
-  type DemoCounter,
-} from './DemoApiClient.ts';
 
 /**
  * The counters, which live in the service rather than in this tab — and which everyone shares.

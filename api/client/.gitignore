@@ -1,15 +1,11 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
-
 # TypeScript cache
 *.tsbuildinfo
-
-# Vite dev server cache
-.vite/
 
 # Task cache
 .task/
 
+# Generated from the OpenAPI contract by `npm run api`
+src/gen/

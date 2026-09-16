@@ -9,6 +9,10 @@ includes:
     taskfile: github.Taskfile.yml
     dir: .
 
+  client:
+    taskfile: api/client/Taskfile.yml
+    dir: api/client
+
   frontend:
     taskfile: frontend/Taskfile.yml
     dir: frontend
@@ -27,6 +31,8 @@ tasks:
     deps:
       - github:fixLint
       - gradleRoot:fixFormatting
+      - client:fixFormatting
+      - client:fixLint
       - frontend:fixFormatting
       - frontend:fixLint
       - infra:fixFormatting

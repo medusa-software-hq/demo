@@ -15,6 +15,10 @@ jobs:
     name: Backend
     uses: ./.github/workflows/check-backend.yml
 
+  check-client:
+    name: Client
+    uses: ./.github/workflows/check-client.yml
+
   check-frontend:
     name: Frontend
     uses: ./.github/workflows/check-frontend.yml
