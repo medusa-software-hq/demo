@@ -25,6 +25,10 @@ includes:
     taskfile: infra/Taskfile.yml
     dir: infra
 
+  systemTests:
+    taskfile: system-tests/Taskfile.yml
+    dir: system-tests
+
   worker:
     taskfile: worker/Taskfile.yml
     dir: worker
@@ -43,5 +47,7 @@ tasks:
       - frontend:fixLint
       - infra:fixFormatting
       - infra:fixLint
+      - systemTests:fixFormatting
+      - systemTests:fixLint
       - worker:fixFormatting
       - worker:fixLint

@@ -1,7 +1,7 @@
 import { createRemoteJWKSet } from 'jose';
 import { GoogleIdTokenMinter, type ServiceAccountKey } from './googleIdToken.ts';
 import { routeFor } from './routing.ts';
-import { SignInTokenVerifier, type SignedInUser } from './signInToken.ts';
+import { SignInTokenVerifier, type Caller } from './signInToken.ts';
 
 /**
  * What this origin answers with: the app's files, its API, and its webhooks.
@@ -170,13 +170,13 @@ const NOT_FORWARDED = [
 
 /**
  * The request as the API should see it: carrying proof that this Worker sent it, and
- * naming [user] as the caller — or nobody, for a sender that did not sign in.
+ * naming [caller] — or nobody, for a sender that did not sign in.
  */
 const callApi = async (
   request: Request,
   pathname: string,
   env: Env,
-  user: SignedInUser | null,
+  caller: Caller | null,
 ): Promise<Response> => {
   const idToken = await minterFor(env.GCP_SA_KEY).idTokenFor(env.API_TARGET);
 
@@ -195,9 +195,9 @@ const callApi = async (
     }
   }
 
-  if (user !== null) {
-    headers.set(IDENTITY_HEADERS.subject, user.subject);
-    headers.set(IDENTITY_HEADERS.email, user.email);
+  if (caller !== null) {
+    headers.set(IDENTITY_HEADERS.subject, caller.subject);
+    headers.set(IDENTITY_HEADERS.email, caller.email);
   }
 
   // Whose name the upstream request travels under. Cloud Run reads this header ahead of
@@ -267,14 +267,14 @@ export default {
         }
 
         return answeringFailures(async () => {
-          const user = await verifierFor(env).verify(token);
+          const caller = await verifierFor(env).verify(token);
 
           // Nothing has been spent upstream yet, and if the token is no good nothing will be.
-          if (user === null) {
+          if (caller === null) {
             return notSignedIn();
           }
 
-          return callApi(request, route.pathname, env, user);
+          return callApi(request, route.pathname, env, caller);
         });
       }
     }

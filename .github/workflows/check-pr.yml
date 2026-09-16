@@ -31,6 +31,10 @@ jobs:
     name: Infra
     uses: ./.github/workflows/check-infra.yml
 
+  check-system:
+    name: System
+    uses: ./.github/workflows/check-system.yml
+
   check-worker:
     name: Worker
     uses: ./.github/workflows/check-worker.yml

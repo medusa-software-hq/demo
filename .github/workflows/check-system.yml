@@ -1,0 +1,71 @@
+name: Check system
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NO_COLOR: 1
+
+jobs:
+  check-system:
+    name: Test the system
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: system-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+
+      # The tests start the stack as a process, from the distribution Gradle builds, with the
+      # Temporal CLI it downloads. Built here rather than by the tests, which only start it.
+      - name: Build the local stack
+        working-directory: .
+        run: ./gradlew :backend:local-stack:installDist :backend:local-stack:installTemporalCli
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: system-tests/.nvmrc
+
+      # The tests call the API through `demo-client`, linked in from next door, whose generated
+      # half is not committed.
+      - name: Install the client's dependencies
+        working-directory: api/client
+        run: npm ci
+
+      - name: Generate the wire client
+        working-directory: api/client
+        run: npm run generate
+
+      # The Worker is bundled from its own sources, which resolve `jose` from their own directory.
+      - name: Install the Worker's dependencies
+        working-directory: worker
+        run: npm ci
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run `oxfmt`
+        run: npx --no-install oxfmt --check "**/*.ts"
+
+      - name: Run `oxlint`
+        # `--type-aware` is where the rules that need the type checker live.
+        run: npx --no-install oxlint --type-aware
+
+      - name: Run `tsc`
+        run: npx --no-install tsc --noEmit
+
+      - name: Run the system tests
+        run: npm test
