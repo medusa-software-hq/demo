@@ -9,12 +9,12 @@ plugins {
 // own.
 dependencies {
   // `api`: a worker is started from a `WorkAvailability.Enabled`.
-  api(project(":backend:work"))
-  implementation(project(":backend:storage"))
+  api(project(":backend:system"))
+  implementation(project(":backend:system:storage"))
 
   implementation(libs.kotlinx.coroutines.core)
 
   testImplementation(libs.kotlin.test)
 }
 
-base { archivesName = "backend-worker" }
+base { archivesName = "backend-system-worker" }

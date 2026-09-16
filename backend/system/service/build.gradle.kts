@@ -8,12 +8,11 @@ plugins {
 
 // The Service: the handler that answers the API out of the storage layer, and the starter that
 // brings the whole thing up. The routes themselves belong to `:api:server`, and the data to
-// `:backend:storage`.
+// `:backend:system:storage`.
 dependencies {
-  implementation(project(":backend"))
-  implementation(project(":backend:storage"))
+  implementation(project(":backend:system:storage"))
   // `api`: the Service is started with a `WorkAvailability`.
-  api(project(":backend:work"))
+  api(project(":backend:system"))
   // `api`: the handler is written in these.
   api(project(":core"))
   api(project(":api:server"))
@@ -34,4 +33,4 @@ micronaut {
   }
 }
 
-base { archivesName = "backend-service" }
+base { archivesName = "backend-system-service" }

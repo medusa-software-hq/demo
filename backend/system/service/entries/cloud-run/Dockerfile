@@ -1,9 +1,9 @@
 # The distribution is built by Gradle and copied in, rather than built here: the build needs the
 # whole repository and a warm Gradle cache, and neither belongs in an image layer.
 #
-#   ./gradlew :backend:service:cloud-run:installDist
-#   docker build -f backend/service/entries/cloud-run/Dockerfile \
-#     backend/service/entries/cloud-run
+#   ./gradlew :backend:system:service:cloud-run:installDist
+#   docker build -f backend/system/service/entries/cloud-run/Dockerfile \
+#     backend/system/service/entries/cloud-run
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app

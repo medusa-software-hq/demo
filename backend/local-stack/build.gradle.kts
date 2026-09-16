@@ -9,9 +9,9 @@ plugins {
 }
 
 dependencies {
-  api(project(":backend:service"))
+  api(project(":backend:system:service"))
   // `api`: the stack runs a worker beside the Service, and callers choose the Temporal it runs on.
-  api(project(":backend:worker"))
+  api(project(":backend:system:worker"))
 
   // Real Postgres binaries with no Docker daemon in the way: the stack brings its own database, so
   // running it locally or testing against it needs nothing installed.

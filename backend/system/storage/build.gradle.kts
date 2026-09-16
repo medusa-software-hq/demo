@@ -10,7 +10,6 @@ plugins {
 // runs against the data — the Service, the tool that migrates a database on purpose, and a worker
 // when there is one — and none of them should need the others to reach it.
 dependencies {
-  implementation(project(":backend"))
   // `api`: the store speaks in counters and their ids.
   api(project(":core"))
 
@@ -42,4 +41,4 @@ sqldelight {
   }
 }
 
-base { archivesName = "backend-storage" }
+base { archivesName = "backend-system-storage" }

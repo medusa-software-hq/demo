@@ -83,7 +83,7 @@ jobs:
       # an image layer.
       - name: Build the distribution
         if: steps.existing.outputs.built == 'false'
-        run: ./gradlew :backend:service:cloud-run:installDist
+        run: ./gradlew :backend:system:service:cloud-run:installDist
 
       # The registry refuses to move a tag that exists, so this name will mean these
       # bytes for good — which is what lets production run what staging was shown to
@@ -94,8 +94,8 @@ jobs:
           IMAGE: ${{ steps.image.outputs.image }}
         run: |
           docker build \
-            --file backend/service/entries/cloud-run/Dockerfile \
+            --file backend/system/service/entries/cloud-run/Dockerfile \
             --tag "$IMAGE" \
-            backend/service/entries/cloud-run
+            backend/system/service/entries/cloud-run
           docker push "$IMAGE"
           echo "Pushed $IMAGE" >> "$GITHUB_STEP_SUMMARY"
