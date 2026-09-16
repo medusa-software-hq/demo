@@ -33,7 +33,7 @@ jobs:
         # Not committed, and everything below reads it: `tsc` follows imports rather than the
         # gitignore. The command lives in `package.json`, so this, the Taskfile, the frontend's
         # own checks and the deployment all run the same one.
-        run: npm run api
+        run: npm run generate
 
       - name: Run `oxfmt`
         run: npx --no-install oxfmt --check "**/*.ts"

@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "api": "openapi-ts -i ../openapi/demo.yaml -o src/gen && node scripts/exempt-generated.mjs"
+    "generate": "openapi-ts -i ../openapi/demo.yaml -o src/gen && node scripts/exempt-generated.mjs"
   },
   "dependencies": {
     "http-status-codes": "^2.3.0"

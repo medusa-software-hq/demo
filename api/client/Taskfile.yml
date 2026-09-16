@@ -20,7 +20,7 @@ tasks:
       # `ci` installs strictly from the lockfile
       - npm ci
 
-  api:
+  generate:
     desc: Generate the wire client from the OpenAPI contract
     deps: [install]
     run: once
@@ -32,7 +32,7 @@ tasks:
       # Defined in `package.json`, not here, because whatever builds this package has to generate
       # too: the frontend's CI and the Pulumi program both call npm directly and never go through
       # Task.
-      - npm run api
+      - npm run generate
 
   checkFormatting:
     desc: Check package formatting
@@ -48,7 +48,7 @@ tasks:
 
   lint:
     desc: Lint the package
-    deps: [install, api]
+    deps: [install, generate]
     cmds:
       # `--type-aware` is where the rules that need the type checker live, and they are the ones
       # that catch conditions which cannot be false.
@@ -56,13 +56,13 @@ tasks:
 
   fixLint:
     desc: Fix lint issues in the package
-    deps: [install, api]
+    deps: [install, generate]
     cmds:
       - npx --no-install oxlint --type-aware --fix
 
   typecheck:
     desc: Type check the package
-    deps: [install, api]
+    deps: [install, generate]
     cmds:
       - npx --no-install tsc --noEmit
 

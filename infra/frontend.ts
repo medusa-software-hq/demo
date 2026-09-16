@@ -35,7 +35,7 @@ export const buildFrontend = (): string => {
   // of as a starting point — which on a workstation costs a reinstall of a directory
   // that was probably already correct. That is the cheaper of the two mistakes.
   npm(CLIENT_PACKAGE, 'ci');
-  npm(CLIENT_PACKAGE, 'run', 'api');
+  npm(CLIENT_PACKAGE, 'run', 'generate');
 
   npm(PACKAGE, 'ci');
   npm(PACKAGE, 'run', 'build');
