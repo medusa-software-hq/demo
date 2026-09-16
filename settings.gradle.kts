@@ -8,8 +8,6 @@ rootProject.name = "demo"
 include(
     ":core",
     ":api",
-    ":api:client:raw",
-    ":api:client",
     ":api:server",
     // `backend/` in three parts: `system/` is what a deployed environment runs, `tools/` is what is
     // run against one deliberately, and `local-stack/` brings the system up on this machine.

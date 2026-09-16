@@ -11,10 +11,10 @@ import kotlin.test.assertEquals
 /**
  * The stack as it is actually run, driven with nothing but the JDK.
  *
- * The suite in `:backend` reaches the service through `:api:client`, which drags its own
- * dependencies onto the test classpath — so a module that forgot to declare something it needs at
- * run time still passed there, and only failed when someone started the thing for real. This test
- * sees the runtime classpath the stack really has, which is the whole point of it.
+ * Nothing is added to the test classpath to reach the service. A client library would drag its own
+ * dependencies along, and a module that forgot to declare something it needs at run time would
+ * still pass here, failing only when someone started the thing for real. This test sees the runtime
+ * classpath the stack really has, which is the whole point of it.
  */
 class BackendStackSmokeTest {
   /**
