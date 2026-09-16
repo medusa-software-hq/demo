@@ -18,9 +18,10 @@ on:
 
   workflow_dispatch:
 
-# `id-token` is how the deploy job federates into Google Cloud to read the Pulumi
-# credential. Nothing here ever sees that credential in this repository's settings:
-# it is read at run time, from a secret only the federated identity may open.
+# `id-token` is how each job below federates into Google Cloud to read what it needs:
+# the Pulumi credential, and the tokens that get past the login in front of the app.
+# None of them is in this repository's settings; each is read at run time, from a secret
+# only the federated identity may open.
 permissions:
   contents: read
   id-token: write
@@ -35,13 +36,22 @@ env:
 # staging just served" true when two merges land close together. A third run replaces
 # the one waiting, which is right — the newest commit contains the one it replaces.
 #
-# Never cancelling in progress, because this job does not do the work. Cancelling it
+# Never cancelling in progress, because these jobs do not do the work. Cancelling one
 # would abandon a running deployment rather than stop it, and lose the only thing
 # watching how it ends.
 concurrency:
   group: deploy-${{ github.repository }}
   cancel-in-progress: false
 
+# The order is the jobs'. Staging is deployed, then tested from outside, and production
+# is only touched once both have passed — every job at the same commit, `github.sha`.
+#
+# All of the steps are in this file, and have to be. The identity that reads the
+# credentials is issued against `job_workflow_ref`, which names the workflow that
+# *defines* the running job; the platform builds the expected value from this
+# repository, so it is this file at this path on `main`. Moving jobs into a workflow
+# this one calls would assert that file's path instead, and be refused. That is why the
+# two deploy jobs repeat each other rather than share a workflow.
 jobs:
   # Before anything is deployed, because what gets deployed is this.
   #
@@ -54,8 +64,8 @@ jobs:
       id-token: write
     uses: ./.github/workflows/push-image.yml
 
-  deploy:
-    name: Deploy
+  deploy-staging:
+    name: Deploy staging
     needs: image
     runs-on: ubuntu-latest
 
@@ -63,17 +73,6 @@ jobs:
       run:
         working-directory: deploy
 
-    # These steps are here, and have to be here.
-    #
-    # The identity that reads the Pulumi credential is issued against
-    # `job_workflow_ref`, which names the workflow that *defines* the running job. The
-    # platform stack builds the expected value from the repository that asked, so it is
-    # this file at this path on this branch — and a job that delegated to another
-    # workflow of this repository's own would assert that one's path and be refused.
-    #
-    # What the steps do is this repository's business now, which is the point of them
-    # being here. What that costs is equally plain: a workflow that can run these can
-    # use the Pulumi credential for whatever it permits.
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -108,13 +107,127 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Which environments, in what order, and where each answers are not this
-      # repository's to decide — they come from the stack that creates them.
-      - name: Deploy every environment, in order
+      - name: Deploy staging
         env:
           PULUMI_ACCESS_TOKEN: ${{ steps.token.outputs.pulumi }}
           PULUMI_ORGANIZATION: ${{ vars.PULUMI_ORGANIZATION }}
           SMOKE_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.smokeTest }}
           DEPLOY_ENVIRONMENTS: ${{ vars.DEPLOY_ENVIRONMENTS }}
           DEPLOY_HOSTNAMES: ${{ vars.DEPLOY_HOSTNAMES }}
-        run: node src/main.ts
+        run: node src/main.ts staging
+
+  # Staging, from outside, the way a browser reaches it: past the real login, through the
+  # real Worker, into the real project. What only exists once something is deployed —
+  # a permission a resource was never given, a third party answering differently from
+  # what a test double said — is found here, and stops production being touched.
+  test-staging:
+    name: Test staging
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: system-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: system-tests/.nvmrc
+
+      # Refused loudly rather than skipped: a gate that quietly stops running is worse
+      # than no gate, because it still looks like one.
+      - name: Check staging admits test services
+        env:
+          TESTED: ${{ vars.DEPLOY_SYSTEM_TESTED_ENVIRONMENTS }}
+        run: |
+          case ",$TESTED," in
+            *,staging,*) ;;
+            *)
+              echo "::error::The platform admits no test services on staging (tested: '$TESTED')"
+              exit 1
+              ;;
+          esac
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.DEPLOY_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+
+      # The two services the tests call as, which the login admits on staging alone.
+      - name: Read the system tests' tokens
+        id: token
+        uses: google-github-actions/get-secretmanager-secrets@v3.0.0
+        with:
+          secrets: |-
+            systemTests:${{ vars.DEPLOY_SYSTEM_TEST_SECRET }}
+
+      # The tests call the API through `demo-client`, linked in from next door, whose
+      # generated half is not committed.
+      - name: Install the client's dependencies
+        working-directory: api/client
+        run: npm ci
+
+      - name: Generate the wire client
+        working-directory: api/client
+        run: npm run generate
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test staging
+        env:
+          SYSTEM_TESTS_ORIGIN: https://${{ fromJSON(vars.DEPLOY_HOSTNAMES).staging }}
+          SYSTEM_TESTS_SERVICE_TOKENS: ${{ steps.token.outputs.systemTests }}
+        run: npm test
+
+  # The same steps as `deploy-staging`, for production — see the note above the jobs for
+  # why they are repeated rather than shared.
+  deploy-production:
+    name: Deploy production
+    needs: test-staging
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: deploy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: deploy/.nvmrc
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.DEPLOY_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Read the Pulumi token and the smoke test's token
+        id: token
+        uses: google-github-actions/get-secretmanager-secrets@v3.0.0
+        with:
+          secrets: |-
+            pulumi:${{ vars.DEPLOY_TOKEN_SECRET }}
+            smokeTest:${{ vars.DEPLOY_SMOKE_TEST_SECRET }}
+
+      - name: Install Pulumi
+        uses: pulumi/actions@v7.0.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy production
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ steps.token.outputs.pulumi }}
+          PULUMI_ORGANIZATION: ${{ vars.PULUMI_ORGANIZATION }}
+          SMOKE_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.smokeTest }}
+          DEPLOY_ENVIRONMENTS: ${{ vars.DEPLOY_ENVIRONMENTS }}
+          DEPLOY_HOSTNAMES: ${{ vars.DEPLOY_HOSTNAMES }}
+        run: node src/main.ts production
