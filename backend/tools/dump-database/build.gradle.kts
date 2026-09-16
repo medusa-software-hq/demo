@@ -8,7 +8,7 @@ plugins {
 // need `psql` and `pg_dump`, which only a real Postgres installation carries, so this module runs
 // one in a container: the one part of the build that needs Docker.
 dependencies {
-  implementation(project(":backend:storage"))
+  implementation(project(":backend:system:storage"))
   // Reads which version a migrated database is at, to name its dump after it.
   implementation(libs.flyway.core)
   implementation(libs.testcontainers.postgresql)
@@ -20,7 +20,9 @@ application { mainClass = "software.medusa.demo.backend.dump_database.MainKt" }
 
 /** Where the migration tests' starting database is kept, and the rows it is built with. */
 val fixtureDirectory =
-    rootProject.layout.projectDirectory.dir("backend/migrate-database/src/test/resources/database")
+    rootProject.layout.projectDirectory.dir(
+        "backend/tools/migrate-database/src/test/resources/database",
+    )
 
 tasks.register<JavaExec>("writeMigrationFixture") {
   group = "database"
@@ -35,4 +37,4 @@ tasks.register<JavaExec>("writeMigrationFixture") {
   )
 }
 
-base { archivesName = "backend-dump-database" }
+base { archivesName = "backend-tools-dump-database" }

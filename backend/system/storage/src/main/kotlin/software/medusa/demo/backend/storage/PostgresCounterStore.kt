@@ -5,7 +5,6 @@ import java.util.UUID
 import javax.sql.DataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import software.medusa.demo.backend.Constants
 import software.medusa.demo.backend.storage.db.DemoDatabase
 import software.medusa.demo.core.Counter
 import software.medusa.demo.core.CounterId
@@ -25,7 +24,7 @@ class PostgresCounterStore(
   override suspend fun create(): CounterId = io {
     val counterId = CounterId(UUID.randomUUID().toString())
 
-    queries.create(id = counterId.value, count = Constants.initialCounterValue)
+    queries.create(id = counterId.value, count = 0)
 
     counterId
   }
